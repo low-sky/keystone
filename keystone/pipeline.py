@@ -34,7 +34,7 @@ def move_files(region='W3', session=81,
              region+'_CH3OH_12_11',
              region+'_C2S_2_1',
              region+'_HNCO_1_0',
-             region+'_H20',
+             region+'_H2O',
              region+'_HC5N_9_8',
              region+'_HC5N_8_7',
              region+'_HC7N_19_18']
@@ -122,7 +122,9 @@ def reduceAll(overwrite=False, release = 'all'):
             os.chdir(cwd)
 
 def wrapper(logfile='ObservationLog.csv',region='W3',
-            window=['0','1','2','3','4','5','6'],
+            window=['0', '9', '10', '12', 
+                    '13', '6', '2', '5', 
+                    '3', '4', '11', '7', '1'],
             overwrite=False,startdate = '2015-01-1',
             enddate='2020-12-31',release='all',obslog = None):
     """
@@ -217,7 +219,7 @@ def doPipeline(SessionNumber=1,StartScan = 11, EndScan=58,
                   '2':'CH3OH_12_11',
                   '5':'C2S_2_1',
                   '3':'HNCO_1_0', 
-                  '4':'H20', 
+                  '4':'H2O', 
                   '11':'HC5N_9_8',
                   '7':'HC5N_8_7', 
                   '1':'HC7N_19_18'}
