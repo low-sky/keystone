@@ -15,5 +15,5 @@ if not _ASTROPY_SETUP_:
     import pipeline
     import gridder
     import catalogs
-
+    import utils
     

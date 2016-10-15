@@ -122,7 +122,7 @@ def reduceAll(overwrite=False, release = 'all'):
             os.chdir(cwd)
 
 def wrapper(logfile='ObservationLog.csv',region='W3',
-            window=['0', '9', '10', '12', 
+            window=['8', '9', '10', '12', 
                     '13', '6', '2', '5', 
                     '3', '4', '11', '7', '1'],
             overwrite=False,startdate = '2015-01-1',
@@ -210,7 +210,7 @@ def doPipeline(SessionNumber=1,StartScan = 11, EndScan=58,
     BankNames = ['A','B','C','D','E','F','G','H']
     print('Reducing '+SessionDir)
 
-    WindowDict = {'0':'NH3_11',   
+    WindowDict = {'8':'NH3_11',   
                   '9':'NH3_22',   
                   '10':'NH3_33',   
                   '12':'NH3_44',   
