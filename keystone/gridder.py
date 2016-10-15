@@ -46,7 +46,7 @@ def jincGrid(xpix, ypix, xdata, ydata, pixPerBeam=None):
     a = 1.55 / (3.0 / pixPerBeam)
     b = 2.52 / (3.0 / pixPerBeam)
 
-    Rsup = 1.0 * pixPerBeam  # Support radius is 1 FWHM
+    Rsup = 1.09 * pixPerBeam  # Support radius is ~1 FWHM (Leroy likes 1.09)
     dmin = 1e-4
     dx = (xdata - xpix)
     dy = (ydata - ypix)
@@ -121,7 +121,7 @@ def addHeader_nonStd(hdr, beamSize, Data_Unit):
     hdr['TELESCOP'] = 'GBT'
     hdr['INSTRUME'] = 'KFPA'
     return(hdr)
-0
+
 
 def griddata(pixPerBeam=3.0,
              templateHeader=None,
@@ -135,7 +135,7 @@ def griddata(pixPerBeam=3.0,
              blorder=1,
              Sessions=None,
              file_extension=None,
-             rebase=False, **kwargs):
+             rebase=False, beamSize=None, **kwargs):
 
     if not Sessions:
         filelist = glob.glob(rootdir + '/' + region + '/' + dirname + '/*fits')
@@ -184,8 +184,8 @@ def griddata(pixPerBeam=3.0,
     nu0 = s[0]['RESTFREQ']
 
     Data_Unit = s[0]['TUNIT7']
-    beamSize = 1.22 * (c / nu0 / 100.0) * 180 / np.pi  # in degrees
-
+    if beamSize is None:
+        beamSize = 1.22 * (c / nu0 / 100.0) * 180 / np.pi  # in degrees
     naxis3 = len(s[0]['DATA'][startChannel:endChannel])
 
     # Default behavior is to park the object velocity at
