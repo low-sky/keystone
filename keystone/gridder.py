@@ -13,6 +13,7 @@ import astropy.constants as con
 import numpy.polynomial.legendre as legendre
 import warnings
 import baseline
+import os
 from . import __version__
 
 
@@ -122,21 +123,51 @@ def addHeader_nonStd(hdr, beamSize, Data_Unit):
     hdr['INSTRUME'] = 'KFPA'
     return(hdr)
 
+def gridall(region='NGC7538', **kwargs):
+    suffix = ['_NH3_11', '_NH3_22', '_NH3_33', '_NH3_44', '_NH3_55',
+              '_C2S_2_1', '_CH3OH_10_9', '_CH3OH_12_11', 
+              '_H20', '_HC5N_8_7', '_HC5N_9_8', '_HC7N_19_18',
+              '_HNCO_1_0']
+    for thisline in suffix:
+        griddata(region = region, dirname = region + thisline,
+                 outdir = './images/', rebase=True,
+                 **kwargs)
 
-def griddata(pixPerBeam=3.0,
+def griddata(pixPerBeam=3.5,
              templateHeader=None,
              gridFunction=jincGrid,
              rootdir='/lustre/pipeline/scratch/KEYSTONE/',
              region='NGC7538',
              dirname='NGC7538_NH3_11',
-             startChannel=762, endChannel=3334,
+             startChannel=None, endChannel=None,
              doBaseline=True,
-             baselineRegion=[slice(762, 1280, 1), slice(2822, 3334, 1)],
+             baselineRegion=None,
              blorder=1,
              Sessions=None,
              file_extension=None,
-             rebase=False, beamSize=None, **kwargs):
+             rebase=False, beamSize=None, 
+             outdir=None, **kwargs):
+    if outdir is None:
+        outdir = os.getcwd()
 
+    if baselineRegion is None:
+        if 'NH3' in dirname:
+            baselineRegion = [slice(762, 1280, 1), slice(2822, 3334, 1)]
+        else:
+            baselineRegion = [slice(1024, 1536, 1), slice(2560, 3072, 1)]
+
+    if startChannel is None:
+        if 'NH3' in dirname:
+            startChannel = 762
+        else:
+            startChannel = 1024
+
+    if endChannel is None:
+        if 'NH3' in dirname:
+            endChannel = 3334
+        else:
+            endChannel = 3072
+    
     if not Sessions:
         filelist = glob.glob(rootdir + '/' + region + '/' + dirname + '/*fits')
         if not file_extension:
@@ -291,7 +322,7 @@ def griddata(pixPerBeam=3.0,
         hdr = addHeader_nonStd(hdr, beamSize, Data_Unit)
         #
         hdu = fits.PrimaryHDU(outCubeTemp, header=hdr)
-        hdu.writeto(dirname + file_extension + '.fits', clobber=True)
+        hdu.writeto(outdir + '/' + dirname + '.fits', clobber=True)
 
     outWts.shape = (1,) + outWts.shape
     outCube /= outWts
@@ -304,30 +335,30 @@ def griddata(pixPerBeam=3.0,
     hdr.add_history(history_message)
     hdr.add_history('Using GAS pipeline version {0}'.format(__version__))
     hdu = fits.PrimaryHDU(outCube, header=hdr)
-    hdu.writeto(dirname + file_extension + '.fits', clobber=True)
+    hdu.writeto(outdir + '/' + dirname + '.fits', clobber=True)
 
     w2 = w.dropaxis(2)
     hdr2 = fits.Header(w2.to_header())
     hdu2 = fits.PrimaryHDU(outWts, header=hdr2)
-    hdu2.writeto(dirname + file_extension + '_wts.fits', clobber=True)
+    hdu2.writeto(outdir + '/' + dirname + '_wts.fits', clobber=True)
 
     if rebase:
         if 'NH3_11' in dirname:
-            baseline.rebaseline(dirname + file_extension + '.fits',
+            baseline.rebaseline(outdir + '/' + dirname + '.fits',
                                 windowFunction=baseline.ammoniaWindow,
                                 line='oneone', **kwargs)
 
         if 'NH3_22' in dirname:
             winfunc = baseline.ammoniaWindow
-            baseline.rebaseline(dirname + file_extension + '.fits',
+            baseline.rebaseline(outdir + '/' + dirname + '.fits',
                                 windowFunction=baseline.ammoniaWindow,
                                 line='twotwo', **kwargs)
 
         if 'NH3_33' in dirname:
-            baseline.rebaseline(dirname + file_extension + '.fits',
+            baseline.rebaseline(outdir + '/' + dirname + '.fits',
                                 winfunc = baseline.ammoniaWindow,
                                 line='threethree', **kwargs)
         else:
-            baseline.rebaseline(dirname + file_extension + '.fits',
+            baseline.rebaseline(outdir + '/' + dirname + '.fits',
                                 windowFunction=baseline.tightWindow, 
                                 **kwargs)

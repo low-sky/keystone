@@ -140,14 +140,15 @@ def trim_edge_cube( cube):
     if len(cube.shape) == 2:
         mask_2d = mask[:,:]
     else:
-        mask_2d = mask[0,:,:]
+        mask_2d = np.any(mask,axis=0)
     # remove image edges
     mask_2d[:,0] = mask_2d[:,-1] = False
     mask_2d[0,:] = mask_2d[-1,:] = False
     # now erode image (using disk) and convert back to 3D mask
     # then replace all voxels with NaN
     mask &= erosion(mask_2d,disk(3))
-    cube[~mask] = np.nan
+    return(cube.with_mask(mask))
+    # cube[~mask] = np.nan
 
 def baseline( file_in, file_out, polyorder=1, 
               index_clean=np.arange(0,100), trim_edge=True):
