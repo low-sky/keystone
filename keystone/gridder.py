@@ -150,7 +150,8 @@ def griddata(pixPerBeam=3.5,
              blorder=1,
              Sessions=None,
              file_extension=None,
-             rebase=False, beamSize=None, 
+             rebase=False, beamSize=None,
+             flagRMS=False,
              outdir=None, **kwargs):
     if outdir is None:
         outdir = os.getcwd()
@@ -215,7 +216,11 @@ def griddata(pixPerBeam=3.5,
             filelist.remove(file_i)
     # pull a test structure
     s = fits.getdata(filelist[0])
-
+    
+    # Constants block
+    sqrt2 = np.sqrt(2)
+    mad2rms = 1.4826
+    prefac = mad2rms / sqrt2
     c = 299792458.
     nu0 = s[0]['RESTFREQ']
 
@@ -307,6 +312,13 @@ def griddata(pixPerBeam=3.5,
                                                         spectrum['CRVAL3'],
                                                         spectrum['CRVAL1'], 0)
             tsys = spectrum['TSYS']
+            if flagRMS:
+                radiometer_rms = tsys / np.sqrt(spectrum['CDELT1'] *
+                                                spectrum['EXPOSURE'])
+                scan_rms = prefac * np.median(np.abs(outslice[0:-1] -
+                                                     outslice[1:]))
+                if scan_rms > 1.25 * radiometer_rms:
+                    tsys = 0 # Blank spectrum
             if (tsys > 10) and (xpoints > 0) and (xpoints < naxis1) \
                     and (ypoints > 0) and (ypoints < naxis2):
                 pixelWeight, Index = gridFunction(xmat, ymat,
