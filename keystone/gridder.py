@@ -13,6 +13,7 @@ import astropy.constants as con
 import numpy.polynomial.legendre as legendre
 import warnings
 import baseline
+import os
 from . import __version__
 
 
@@ -46,7 +47,7 @@ def jincGrid(xpix, ypix, xdata, ydata, pixPerBeam=None):
     a = 1.55 / (3.0 / pixPerBeam)
     b = 2.52 / (3.0 / pixPerBeam)
 
-    Rsup = 1.0 * pixPerBeam  # Support radius is 1 FWHM
+    Rsup = 1.09 * pixPerBeam  # Support radius is ~1 FWHM (Leroy likes 1.09)
     dmin = 1e-4
     dx = (xdata - xpix)
     dy = (ydata - ypix)
@@ -83,10 +84,10 @@ def autoHeader(filelist, beamSize=0.0087, pixPerBeam=3.0):
     latitude = np.array(list(itertools.chain(*DEClist)))
     longitude = longitude[longitude != 0]
     latitude = latitude[latitude != 0]
-    minLon = longitude.min()
-    maxLon = longitude.max()
-    minLat = latitude.min()
-    maxLat = latitude.max()
+    minLon = np.nanmin(longitude)
+    maxLon = np.nanmax(longitude)
+    minLat = np.nanmin(latitude)
+    maxLat = np.nanmax(latitude)
 
     naxis2 = np.ceil((maxLat - minLat) /
                      (beamSize / pixPerBeam) + 2 * pixPerBeam)
@@ -121,22 +122,58 @@ def addHeader_nonStd(hdr, beamSize, Data_Unit):
     hdr['TELESCOP'] = 'GBT'
     hdr['INSTRUME'] = 'KFPA'
     return(hdr)
-0
 
-def griddata(pixPerBeam=3.0,
+def gridall(region='NGC7538', **kwargs):
+    suffix = ['NH3_22', 'NH3_33', 'NH3_44', 'NH3_55',
+              'C2S_2_1', 'CH3OH_10_9', 'CH3OH_12_11', 
+              'H20', 'HC5N_8_7', 'HC5N_9_8', 'HC7N_19_18',
+              'HNCO_1_0']
+    griddata(region = region, dirname = region + '_NH3_11',
+             outdir = './images/', rebase=True,
+             **kwargs)
+    templatehdr = fits.getheader('./images/' + region + '_NH3_11.fits')
+    for thisline in suffix:
+        griddata(region = region, dirname = region + '_' + thisline,
+                 outdir = './images/', rebase=True,
+                 templateHeader=templatehdr,
+                 **kwargs)
+
+def griddata(pixPerBeam=3.5,
              templateHeader=None,
              gridFunction=jincGrid,
              rootdir='/lustre/pipeline/scratch/KEYSTONE/',
-             region='W3',
-             dirname='W3_NH3_11',
-             startChannel=762, endChannel=15662,
+             region='NGC7538',
+             dirname='NGC7538_NH3_11',
+             startChannel=None, endChannel=None,
              doBaseline=True,
-             baselineRegion=[slice(762, 1024, 1), slice(14860, 15662, 1)],
+             baselineRegion=None,
              blorder=1,
              Sessions=None,
              file_extension=None,
-             rebase=False, **kwargs):
+             rebase=False, beamSize=None,
+             flagRMS=False,
+             outdir=None, **kwargs):
+    if outdir is None:
+        outdir = os.getcwd()
 
+    if baselineRegion is None:
+        if 'NH3' in dirname:
+            baselineRegion = [slice(762, 1280, 1), slice(2822, 3334, 1)]
+        else:
+            baselineRegion = [slice(1024, 1536, 1), slice(2560, 3072, 1)]
+
+    if startChannel is None:
+        if 'NH3' in dirname:
+            startChannel = 762
+        else:
+            startChannel = 1024
+
+    if endChannel is None:
+        if 'NH3' in dirname:
+            endChannel = 3334
+        else:
+            endChannel = 3072
+    
     if not Sessions:
         filelist = glob.glob(rootdir + '/' + region + '/' + dirname + '/*fits')
         if not file_extension:
@@ -179,13 +216,17 @@ def griddata(pixPerBeam=3.0,
             filelist.remove(file_i)
     # pull a test structure
     s = fits.getdata(filelist[0])
-
+    
+    # Constants block
+    sqrt2 = np.sqrt(2)
+    mad2rms = 1.4826
+    prefac = mad2rms / sqrt2
     c = 299792458.
     nu0 = s[0]['RESTFREQ']
 
     Data_Unit = s[0]['TUNIT7']
-    beamSize = 1.22 * (c / nu0 / 100.0) * 180 / np.pi  # in degrees
-
+    if beamSize is None:
+        beamSize = 1.22 * (c / nu0 / 100.0) * 180 / np.pi  # in degrees
     naxis3 = len(s[0]['DATA'][startChannel:endChannel])
 
     # Default behavior is to park the object velocity at
@@ -271,6 +312,13 @@ def griddata(pixPerBeam=3.0,
                                                         spectrum['CRVAL3'],
                                                         spectrum['CRVAL1'], 0)
             tsys = spectrum['TSYS']
+            if flagRMS:
+                radiometer_rms = tsys / np.sqrt(spectrum['CDELT1'] *
+                                                spectrum['EXPOSURE'])
+                scan_rms = prefac * np.median(np.abs(outslice[0:-1] -
+                                                     outslice[1:]))
+                if scan_rms > 1.25 * radiometer_rms:
+                    tsys = 0 # Blank spectrum
             if (tsys > 10) and (xpoints > 0) and (xpoints < naxis1) \
                     and (ypoints > 0) and (ypoints < naxis2):
                 pixelWeight, Index = gridFunction(xmat, ymat,
@@ -291,7 +339,7 @@ def griddata(pixPerBeam=3.0,
         hdr = addHeader_nonStd(hdr, beamSize, Data_Unit)
         #
         hdu = fits.PrimaryHDU(outCubeTemp, header=hdr)
-        hdu.writeto(dirname + file_extension + '.fits', clobber=True)
+        hdu.writeto(outdir + '/' + dirname + '.fits', clobber=True)
 
     outWts.shape = (1,) + outWts.shape
     outCube /= outWts
@@ -304,30 +352,31 @@ def griddata(pixPerBeam=3.0,
     hdr.add_history(history_message)
     hdr.add_history('Using GAS pipeline version {0}'.format(__version__))
     hdu = fits.PrimaryHDU(outCube, header=hdr)
-    hdu.writeto(dirname + file_extension + '.fits', clobber=True)
+    hdu.writeto(outdir + '/' + dirname + '.fits', clobber=True)
 
     w2 = w.dropaxis(2)
     hdr2 = fits.Header(w2.to_header())
     hdu2 = fits.PrimaryHDU(outWts, header=hdr2)
-    hdu2.writeto(dirname + file_extension + '_wts.fits', clobber=True)
+    hdu2.writeto(outdir + '/' + dirname + '_wts.fits', clobber=True)
 
     if rebase:
+
         if 'NH3_11' in dirname:
-            baseline.rebaseline(dirname + file_extension + '.fits',
+            baseline.rebaseline(outdir + '/' + dirname + '.fits',
                                 windowFunction=baseline.ammoniaWindow,
                                 line='oneone', **kwargs)
 
-        if 'NH3_22' in dirname:
+        elif 'NH3_22' in dirname:
             winfunc = baseline.ammoniaWindow
-            baseline.rebaseline(dirname + file_extension + '.fits',
+            baseline.rebaseline(outdir + '/' + dirname + '.fits',
                                 windowFunction=baseline.ammoniaWindow,
                                 line='twotwo', **kwargs)
 
-        if 'NH3_33' in dirname:
-            baseline.rebaseline(dirname + file_extension + '.fits',
+        elif 'NH3_33' in dirname:
+            baseline.rebaseline(outdir + '/' + dirname + '.fits',
                                 winfunc = baseline.ammoniaWindow,
                                 line='threethree', **kwargs)
         else:
-            baseline.rebaseline(dirname + file_extension + '.fits',
+            baseline.rebaseline(outdir + '/' + dirname + '.fits',
                                 windowFunction=baseline.tightWindow, 
                                 **kwargs)

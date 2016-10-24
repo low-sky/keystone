@@ -94,3 +94,13 @@ def FitGradient(vlsrData, vlsrWCS):
         print(i)
 
     return
+
+def hanning(cube, decimate=True):
+# Hanning smooth and optionally decimate a SpectralCube
+    cube.allow_huge_operations = True
+    smcube = cube[1:-1,:,:] * 0.5
+    smcube += cube[0:-2,:,:] * 0.25
+    smcube += cube[2:,:,:] * 0.25
+    if decimate:
+        smcube = smcube[1::2,:,:]
+    return smcube
