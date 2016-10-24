@@ -84,10 +84,10 @@ def autoHeader(filelist, beamSize=0.0087, pixPerBeam=3.0):
     latitude = np.array(list(itertools.chain(*DEClist)))
     longitude = longitude[longitude != 0]
     latitude = latitude[latitude != 0]
-    minLon = longitude.min()
-    maxLon = longitude.max()
-    minLat = latitude.min()
-    maxLat = latitude.max()
+    minLon = np.nanmin(longitude)
+    maxLon = np.nanmax(longitude)
+    minLat = np.nanmin(latitude)
+    maxLat = np.nanmax(latitude)
 
     naxis2 = np.ceil((maxLat - minLat) /
                      (beamSize / pixPerBeam) + 2 * pixPerBeam)
@@ -124,13 +124,18 @@ def addHeader_nonStd(hdr, beamSize, Data_Unit):
     return(hdr)
 
 def gridall(region='NGC7538', **kwargs):
-    suffix = ['_NH3_11', '_NH3_22', '_NH3_33', '_NH3_44', '_NH3_55',
-              '_C2S_2_1', '_CH3OH_10_9', '_CH3OH_12_11', 
-              '_H20', '_HC5N_8_7', '_HC5N_9_8', '_HC7N_19_18',
-              '_HNCO_1_0']
+    suffix = ['NH3_22', 'NH3_33', 'NH3_44', 'NH3_55',
+              'C2S_2_1', 'CH3OH_10_9', 'CH3OH_12_11', 
+              'H20', 'HC5N_8_7', 'HC5N_9_8', 'HC7N_19_18',
+              'HNCO_1_0']
+    griddata(region = region, dirname = region + '_NH3_11',
+             outdir = './images/', rebase=True,
+             **kwargs)
+    templatehdr = fits.getheader('./images/' + region + '_NH3_11.fits')
     for thisline in suffix:
-        griddata(region = region, dirname = region + thisline,
+        griddata(region = region, dirname = region + '_' + thisline,
                  outdir = './images/', rebase=True,
+                 templateHeader=templatehdr,
                  **kwargs)
 
 def griddata(pixPerBeam=3.5,
@@ -343,18 +348,19 @@ def griddata(pixPerBeam=3.5,
     hdu2.writeto(outdir + '/' + dirname + '_wts.fits', clobber=True)
 
     if rebase:
+
         if 'NH3_11' in dirname:
             baseline.rebaseline(outdir + '/' + dirname + '.fits',
                                 windowFunction=baseline.ammoniaWindow,
                                 line='oneone', **kwargs)
 
-        if 'NH3_22' in dirname:
+        elif 'NH3_22' in dirname:
             winfunc = baseline.ammoniaWindow
             baseline.rebaseline(outdir + '/' + dirname + '.fits',
                                 windowFunction=baseline.ammoniaWindow,
                                 line='twotwo', **kwargs)
 
-        if 'NH3_33' in dirname:
+        elif 'NH3_33' in dirname:
             baseline.rebaseline(outdir + '/' + dirname + '.fits',
                                 winfunc = baseline.ammoniaWindow,
                                 line='threethree', **kwargs)
