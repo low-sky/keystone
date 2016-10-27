@@ -132,7 +132,7 @@ def robustBaseline(y, baselineIndex, blorder=1, noiserms=None):
 
 
 def rebaseline(filename, blorder=3, 
-               baselineRegion=[slice(0, 262, 1), slice(-512, 0, 1)],
+               baselineRegion=[slice(0, 800, 1), slice(-800, 0, 1)],
                windowFunction=None, blankBaseline=False,
                flagSpike=True, v0=None, trimEdge=True, **kwargs):
     """
