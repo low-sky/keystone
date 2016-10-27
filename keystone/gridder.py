@@ -126,7 +126,7 @@ def addHeader_nonStd(hdr, beamSize, Data_Unit):
 def gridall(region='NGC7538', **kwargs):
     suffix = ['NH3_22', 'NH3_33', 'NH3_44', 'NH3_55',
               'C2S_2_1', 'CH3OH_10_9', 'CH3OH_12_11', 
-              'H20', 'HC5N_8_7', 'HC5N_9_8', 'HC7N_19_18',
+              'H2O', 'HC5N_8_7', 'HC5N_9_8', 'HC7N_19_18',
               'HNCO_1_0']
     griddata(region = region, dirname = region + '_NH3_11',
              outdir = './images/', rebase=True,
