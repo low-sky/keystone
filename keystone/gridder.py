@@ -81,12 +81,12 @@ def VframeInterpolator(scan):
     odds = (scannum % 2) == 1
     evens = (scannum % 2) == 0
     
-    coeff_odds,_,_,_ = numpy.linalg.lstsq(\
+    coeff_odds,_,_,_ = np.linalg.lstsq(\
         np.c_[startindices[odds]*1.0,
               np.ones_like(startindices[odds])],
         vfs[odds])
 
-    coeff_evens,_,_,_ = numpy.linalg.lstsq(\
+    coeff_evens,_,_,_ = np.linalg.lstsq(\
         np.c_[startindices[evens]*1.0,
               np.ones_like(startindices[evens])],
         vfs[evens])
@@ -190,8 +190,11 @@ def griddata(pixPerBeam=3.5,
              blorder=1,
              Sessions=None,
              file_extension=None,
-             rebase=False, beamSize=None,
+             rebase=False, 
+             beamSize=None,
+             OnlineDoppler=True,
              flagRMS=False,
+
              outdir=None, **kwargs):
     if outdir is None:
         outdir = os.getcwd()
@@ -326,11 +329,11 @@ def griddata(pixPerBeam=3.5,
         nuindex = np.arange(len(s[1].data['DATA'][0]))
 
         if not OnlineDoppler:
-            vframe = VframeInterpolator(s.data)
+            vframe = VframeInterpolator(s[1].data)
         else:
             vframe = s['VFRAME']
 
-        for idx, spectrum in enmerate(console.ProgressBar((s[1].data))):
+        for idx, spectrum in enumerate(console.ProgressBar((s[1].data))):
             # Generate Baseline regions
             baselineIndex = np.concatenate([nuindex[ss]
                                             for ss in baselineRegion])

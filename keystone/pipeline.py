@@ -91,7 +91,7 @@ def fillAll(overwrite=False):
             permissions = 'chmod g+rw -R '+OutputDir
             subprocess.call(permissions,shell=True)
 
-def reduceSession(overwrite=False, release = 'all'):
+def reduceSession(session = 1, overwrite=False, release = 'all'):
     """
     Function to reduce all data using the GBT-pipeline.
     
@@ -108,8 +108,11 @@ def reduceSession(overwrite=False, release = 'all'):
     catalogs.updateCatalog(release=release)
     RegionCatalog = catalogs.GenerateRegions()
     Log = catalogs.parseLog()
+    SessionRows = Log['Session'] == session
+    Log = Log[SessionRows]
     uniqSrc = RegionCatalog['Region name']
     cwd = os.getcwd()
+    import pdb; pdb.set_trace()
     for region in uniqSrc:
         if region != 'none':
             try:
@@ -209,22 +212,23 @@ def wrapper(logfile='ObservationLog.csv',region='W3',
                     Gains = observation['Beam Gains']
                 if str(observation['Special RawDir']) == '--':
                     doPipeline(SessionNumber=observation['Session'],
-                           StartScan=observation['Start Scan'],
-                           EndScan=observation['End Scan'],
-                           Source=observation['Source'],
-                           Gains=Gains,
-                           Region=region,
-                           Window=str(thisWindow),overwrite=overwrite)
+                               StartScan=observation['Start Scan'],
+                               EndScan=observation['End Scan'],
+                               Source=observation['Source'],
+                               Gains=Gains,
+                               Region=region,
+                               Window=str(thisWindow),
+                               overwrite=overwrite)
                 else :
-                        doPipeline(SessionNumber=observation['Session'],
-                           StartScan=observation['Start Scan'],
-                           EndScan=observation['End Scan'],
-                           Source=observation['Source'],
-                           Gains=Gains,
-                           Region=region,
-                           RawDataDir=observation['Special RawDir'],
-                           Window=str(thisWindow),overwrite=overwrite)
-
+                    doPipeline(SessionNumber=observation['Session'],
+                               StartScan=observation['Start Scan'],
+                               EndScan=observation['End Scan'],
+                               Source=observation['Source'],
+                               Gains=Gains,
+                               Region=region,
+                               RawDataDir=observation['Special RawDir'],
+                               Window=str(thisWindow),overwrite=overwrite)
+                    
 def doPipeline(SessionNumber=1,StartScan = 11, EndScan=58,
                Source='Perseus_map_NGC1333-A', Window='0',
                Region = 'NGC1333', OptionDict = None,
