@@ -91,6 +91,38 @@ def fillAll(overwrite=False):
             permissions = 'chmod g+rw -R '+OutputDir
             subprocess.call(permissions,shell=True)
 
+def reduceSession(overwrite=False, release = 'all'):
+    """
+    Function to reduce all data using the GBT-pipeline.
+    
+    reduceAll(overwrite=False, release='all')
+
+    release : string
+        Variable that selects which set of data is to be reduced. 
+        Default value is 'all', while 'DR1' generates the Data Release 1, and 
+        hopefully 'DR2' will be available in the near future.
+    overwrite : bool
+        If True it will overwrite files.
+    """
+    catalogs.updateLogs(release=release)
+    catalogs.updateCatalog(release=release)
+    RegionCatalog = catalogs.GenerateRegions()
+    Log = catalogs.parseLog()
+    uniqSrc = RegionCatalog['Region name']
+    cwd = os.getcwd()
+    for region in uniqSrc:
+        if region != 'none':
+            try:
+                os.chdir(cwd+'/'+region)
+            except OSError:
+                os.mkdir(cwd+'/'+region)
+                os.chdir(cwd+'/'+region)
+            wrapper(region=region, overwrite = overwrite,
+                    release=release, obslog = Log)
+            os.chdir(cwd)
+
+
+
 def reduceAll(overwrite=False, release = 'all'):
     """
     Function to reduce all data using the GBT-pipeline.

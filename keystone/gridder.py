@@ -69,6 +69,46 @@ def jincGrid(xpix, ypix, xdata, ydata, pixPerBeam=None):
     return(wt, ind)
 
 
+def VframeInterpolator(scan):
+    # Find cases where the scan number is 
+    startidx = scan['PROCSEQN']!=np.roll(scan['PROCSEQN'],1)
+    scanstarts = scan[startidx]
+    indices = np.arange(len(scan))
+    startindices = indices[startidx]
+    scannum = scanstarts['PROCSEQN']
+    vfs = scanstarts['VFRAME']
+
+    odds = (scannum % 2) == 1
+    evens = (scannum % 2) == 0
+    
+    coeff_odds,_,_,_ = numpy.linalg.lstsq(\
+        np.c_[startindices[odds]*1.0,
+              np.ones_like(startindices[odds])],
+        vfs[odds])
+
+    coeff_evens,_,_,_ = numpy.linalg.lstsq(\
+        np.c_[startindices[evens]*1.0,
+              np.ones_like(startindices[evens])],
+        vfs[evens])
+
+    vfit = np.zeros(len(scan))+np.nan
+
+    for thisone, singlescan in enumerate(scan):
+        startv = vfs[scannum == singlescan['PROCSEQN']]
+        startt = startindices[scannum == singlescan['PROCSEQN']]
+        if singlescan['PROCSEQN'] % 2 == 0:
+            endv = coeff_odds[1] + coeff_odds[0] * (startt+94)
+        if singlescan['PROCSEQN'] % 2 == 1:
+            endv = coeff_evens[1] + coeff_evens[0] * (startt+94)
+
+        endt = startt+94
+        try:
+            vfit[thisone] = (thisone - startt) * \
+                (endv - startv)/94 + startv
+        except:
+            pass
+    return(vfit)
+    
 def autoHeader(filelist, beamSize=0.0087, pixPerBeam=3.0):
     RAlist = []
     DEClist = []
@@ -285,7 +325,12 @@ def griddata(pixPerBeam=3.5,
 
         nuindex = np.arange(len(s[1].data['DATA'][0]))
 
-        for spectrum in console.ProgressBar((s[1].data)):
+        if not OnlineDoppler:
+            vframe = VframeInterpolator(s.data)
+        else:
+            vframe = s['VFRAME']
+
+        for idx, spectrum in enmerate(console.ProgressBar((s[1].data))):
             # Generate Baseline regions
             baselineIndex = np.concatenate([nuindex[ss]
                                             for ss in baselineRegion])
@@ -300,9 +345,9 @@ def griddata(pixPerBeam=3.5,
             # CRPIX1 (i.e., CRVAL1) and calculates the what frequency
             # that would have in the LSRK frame with freqShiftValue.
             # This then compares to the desired frequency CRVAL3.
-
+                
             DeltaNu = freqShiftValue(spectrum['CRVAL1'],
-                                     -spectrum['VFRAME']) - crval3
+                                     -vframe[idx]) - crval3
             DeltaChan = DeltaNu / cdelt3
             specData = channelShift(specData, -DeltaChan)
             outslice = (specData)[startChannel:endChannel]
