@@ -194,7 +194,7 @@ def griddata(pixPerBeam=3.5,
              beamSize=None,
              OnlineDoppler=True,
              flagRMS=False,
-
+             filelist = [],
              outdir=None, **kwargs):
     if outdir is None:
         outdir = os.getcwd()
@@ -216,34 +216,35 @@ def griddata(pixPerBeam=3.5,
             endChannel = 3334
         else:
             endChannel = 3072
-    
-    if not Sessions:
-        filelist = glob.glob(rootdir + '/' + region + '/' + dirname + '/*fits')
-        if not file_extension:
-            file_extension = '_all'
-        history_message = 'Gridding of data using all sessions'
-    else:
-        filelist = []
-        for scan_i in Sessions:
-                filelist.extend(glob.glob(rootdir + '/' + region +
-                                          '/' + dirname + '/*_sess' +
-                                          str(scan_i) + '.fits'))
-        if isinstance(Sessions, list):
+# If the filelist is not specified, go ahead and build it from groupings.
+    if not filelist:
+        if not Sessions:
+            filelist = glob.glob(rootdir + '/' + region + '/' + dirname + '/*fits')
             if not file_extension:
-                file_extension = '_sess{0}-sess{1}'.format(Sessions[0],
-                                                           Sessions[-1])
-            if (Sessions[-1] + 1. - Sessions[0]) / len(Sessions) == 1.0:
-                history_message = 'Gridding of data using sessions' \
-                    'between {0} and {1}'.format(Sessions[0], Sessions[-1])
-            else:
-                history_message = 'Gridding of data using sessions: '
-                for scan_i in Sessions:
-                    history_message += '{0}, '.format(scan_i)
+                file_extension = '_all'
+            history_message = 'Gridding of data using all sessions'
         else:
-            if not file_extension:
-                file_extension = '_sess{0}'.format(Sessions)
-            history_message = 'Gridding of data using session'\
-                '{0}'.format(Sessions)
+            filelist = []
+            for scan_i in Sessions:
+                    filelist.extend(glob.glob(rootdir + '/' + region +
+                                              '/' + dirname + '/*_sess' +
+                                              str(scan_i) + '.fits'))
+            if isinstance(Sessions, list):
+                if not file_extension:
+                    file_extension = '_sess{0}-sess{1}'.format(Sessions[0],
+                                                               Sessions[-1])
+                if (Sessions[-1] + 1. - Sessions[0]) / len(Sessions) == 1.0:
+                    history_message = 'Gridding of data using sessions' \
+                        'between {0} and {1}'.format(Sessions[0], Sessions[-1])
+                else:
+                    history_message = 'Gridding of data using sessions: '
+                    for scan_i in Sessions:
+                        history_message += '{0}, '.format(scan_i)
+            else:
+                if not file_extension:
+                    file_extension = '_sess{0}'.format(Sessions)
+                history_message = 'Gridding of data using session'\
+                    '{0}'.format(Sessions)
 
     if len(filelist) == 0:
         warnings.warn('There are no FITS files to process '
