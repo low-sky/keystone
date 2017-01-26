@@ -194,6 +194,7 @@ def griddata(pixPerBeam=3.5,
              beamSize=None,
              OnlineDoppler=True,
              flagRMS=False,
+             flagRipple=False,
              filelist = [],
              outdir=None, **kwargs):
     if outdir is None:
@@ -258,10 +259,12 @@ def griddata(pixPerBeam=3.5,
         except:
             warnings.warn('file {0} is corrupted'.format(file_i))
             filelist.remove(file_i)
-    # pull a test structure
-    s = fits.getdata(filelist[0])
+# pull a test structure
+    hdulist = fits.open(filelist[0])
+    s = hdulist[1].data
+#    s = fits.getdata(filelist[0])
     
-    # Constants block
+# Constants block
     sqrt2 = np.sqrt(2)
     mad2rms = 1.4826
     prefac = mad2rms / sqrt2
@@ -273,8 +276,8 @@ def griddata(pixPerBeam=3.5,
         beamSize = 1.22 * (c / nu0 / 100.0) * 180 / np.pi  # in degrees
     naxis3 = len(s[0]['DATA'][startChannel:endChannel])
 
-    # Default behavior is to park the object velocity at
-    # the center channel in the VRAD-LSR frame
+# Default behavior is to park the object velocity at
+# the center channel in the VRAD-LSR frame
 
     crval3 = s[0]['RESTFREQ'] * (1 - s[0]['VELOCITY'] / c)
     crpix3 = s[0]['CRPIX1'] - startChannel
@@ -332,7 +335,7 @@ def griddata(pixPerBeam=3.5,
         if not OnlineDoppler:
             vframe = VframeInterpolator(s[1].data)
         else:
-            vframe = s['VFRAME']
+            vframe = s[1].data['VFRAME']
 
         for idx, spectrum in enumerate(console.ProgressBar((s[1].data))):
             # Generate Baseline regions
@@ -362,12 +365,21 @@ def griddata(pixPerBeam=3.5,
                                                         spectrum['CRVAL1'], 0)
             tsys = spectrum['TSYS']
             if flagRMS:
-                radiometer_rms = tsys / np.sqrt(spectrum['CDELT1'] *
+                radiometer_rms = tsys / np.sqrt(np.abs(spectrum['CDELT1']) *
                                                 spectrum['EXPOSURE'])
-                scan_rms = prefac * np.median(np.abs(outslice[0:-1] -
-                                                     outslice[1:]))
+                scan_rms = prefac * np.median(np.abs(outslice[0:-2] -
+                                                        outslice[2:]))
+
                 if scan_rms > 1.25 * radiometer_rms:
                     tsys = 0 # Blank spectrum
+            if flagRipple:
+                scan_rms = prefac * np.median(np.abs(outslice[0:-2] -
+                                                     outslice[2:]))
+                ripple = prefac * sqrt2 * np.median(np.abs(outslice))
+
+                if ripple > 2 * scan_rms:
+                    tsys = 0 # Blank spectrum
+                
             if (tsys > 10) and (xpoints > 0) and (xpoints < naxis1) \
                     and (ypoints > 0) and (ypoints < naxis2):
                 pixelWeight, Index = gridFunction(xmat, ymat,
@@ -398,8 +410,11 @@ def griddata(pixPerBeam=3.5,
     # Add non standard fits keyword
     hdr = addHeader_nonStd(hdr, beamSize, Data_Unit)
     # Adds history message
-    hdr.add_history(history_message)
-    hdr.add_history('Using GAS pipeline version {0}'.format(__version__))
+    try:
+        hdr.add_history(history_message)
+    except UnboundLocalError:
+        pass
+    hdr.add_history('Using KEYSTONE pipeline version {0}'.format(__version__))
     hdu = fits.PrimaryHDU(outCube, header=hdr)
     hdu.writeto(outdir + '/' + dirname + '.fits', clobber=True)
 
