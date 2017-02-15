@@ -92,7 +92,8 @@ def tightWindow(spectrum, spaxis,
     mask = np.zeros_like(spectrum, dtype=np.bool)
     mask[(spaxis > (v0 - window)) * (spaxis < (v0 + window))] = True
     deltachan = freqthrow / ((spaxis[1] - spaxis[0]) /
-                             299792.458 * 23.5 * u.GHz)
+                             299792.458 * 0.5 * (spaxis[1] + 
+                                                 spaxis[0]) * u.GHz)
     deltachan = deltachan.to(u.dimensionless_unscaled).value
     deltachan = (np.floor(np.abs(deltachan))).astype(np.int)
 

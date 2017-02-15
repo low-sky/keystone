@@ -69,6 +69,46 @@ def jincGrid(xpix, ypix, xdata, ydata, pixPerBeam=None):
     return(wt, ind)
 
 
+def VframeInterpolator(scan):
+    # Find cases where the scan number is 
+    startidx = scan['PROCSEQN']!=np.roll(scan['PROCSEQN'],1)
+    scanstarts = scan[startidx]
+    indices = np.arange(len(scan))
+    startindices = indices[startidx]
+    scannum = scanstarts['PROCSEQN']
+    vfs = scanstarts['VFRAME']
+
+    odds = (scannum % 2) == 1
+    evens = (scannum % 2) == 0
+    
+    coeff_odds,_,_,_ = np.linalg.lstsq(\
+        np.c_[startindices[odds]*1.0,
+              np.ones_like(startindices[odds])],
+        vfs[odds])
+
+    coeff_evens,_,_,_ = np.linalg.lstsq(\
+        np.c_[startindices[evens]*1.0,
+              np.ones_like(startindices[evens])],
+        vfs[evens])
+
+    vfit = np.zeros(len(scan))+np.nan
+
+    for thisone, singlescan in enumerate(scan):
+        startv = vfs[scannum == singlescan['PROCSEQN']]
+        startt = startindices[scannum == singlescan['PROCSEQN']]
+        if singlescan['PROCSEQN'] % 2 == 0:
+            endv = coeff_odds[1] + coeff_odds[0] * (startt+94)
+        if singlescan['PROCSEQN'] % 2 == 1:
+            endv = coeff_evens[1] + coeff_evens[0] * (startt+94)
+
+        endt = startt+94
+        try:
+            vfit[thisone] = (thisone - startt) * \
+                (endv - startv)/94 + startv
+        except:
+            pass
+    return(vfit)
+    
 def autoHeader(filelist, beamSize=0.0087, pixPerBeam=3.0):
     RAlist = []
     DEClist = []
@@ -150,8 +190,12 @@ def griddata(pixPerBeam=3.5,
              blorder=1,
              Sessions=None,
              file_extension=None,
-             rebase=False, beamSize=None,
+             rebase=False, 
+             beamSize=None,
+             OnlineDoppler=True,
              flagRMS=False,
+             flagRipple=False,
+             filelist = [],
              outdir=None, **kwargs):
     if outdir is None:
         outdir = os.getcwd()
@@ -173,34 +217,35 @@ def griddata(pixPerBeam=3.5,
             endChannel = 3334
         else:
             endChannel = 3072
-    
-    if not Sessions:
-        filelist = glob.glob(rootdir + '/' + region + '/' + dirname + '/*fits')
-        if not file_extension:
-            file_extension = '_all'
-        history_message = 'Gridding of data using all sessions'
-    else:
-        filelist = []
-        for scan_i in Sessions:
-                filelist.extend(glob.glob(rootdir + '/' + region +
-                                          '/' + dirname + '/*_sess' +
-                                          str(scan_i) + '.fits'))
-        if isinstance(Sessions, list):
+# If the filelist is not specified, go ahead and build it from groupings.
+    if not filelist:
+        if not Sessions:
+            filelist = glob.glob(rootdir + '/' + region + '/' + dirname + '/*fits')
             if not file_extension:
-                file_extension = '_sess{0}-sess{1}'.format(Sessions[0],
-                                                           Sessions[-1])
-            if (Sessions[-1] + 1. - Sessions[0]) / len(Sessions) == 1.0:
-                history_message = 'Gridding of data using sessions' \
-                    'between {0} and {1}'.format(Sessions[0], Sessions[-1])
-            else:
-                history_message = 'Gridding of data using sessions: '
-                for scan_i in Sessions:
-                    history_message += '{0}, '.format(scan_i)
+                file_extension = '_all'
+            history_message = 'Gridding of data using all sessions'
         else:
-            if not file_extension:
-                file_extension = '_sess{0}'.format(Sessions)
-            history_message = 'Gridding of data using session'\
-                '{0}'.format(Sessions)
+            filelist = []
+            for scan_i in Sessions:
+                    filelist.extend(glob.glob(rootdir + '/' + region +
+                                              '/' + dirname + '/*_sess' +
+                                              str(scan_i) + '.fits'))
+            if isinstance(Sessions, list):
+                if not file_extension:
+                    file_extension = '_sess{0}-sess{1}'.format(Sessions[0],
+                                                               Sessions[-1])
+                if (Sessions[-1] + 1. - Sessions[0]) / len(Sessions) == 1.0:
+                    history_message = 'Gridding of data using sessions' \
+                        'between {0} and {1}'.format(Sessions[0], Sessions[-1])
+                else:
+                    history_message = 'Gridding of data using sessions: '
+                    for scan_i in Sessions:
+                        history_message += '{0}, '.format(scan_i)
+            else:
+                if not file_extension:
+                    file_extension = '_sess{0}'.format(Sessions)
+                history_message = 'Gridding of data using session'\
+                    '{0}'.format(Sessions)
 
     if len(filelist) == 0:
         warnings.warn('There are no FITS files to process '
@@ -214,10 +259,12 @@ def griddata(pixPerBeam=3.5,
         except:
             warnings.warn('file {0} is corrupted'.format(file_i))
             filelist.remove(file_i)
-    # pull a test structure
-    s = fits.getdata(filelist[0])
+# pull a test structure
+    hdulist = fits.open(filelist[0])
+    s = hdulist[1].data
+#    s = fits.getdata(filelist[0])
     
-    # Constants block
+# Constants block
     sqrt2 = np.sqrt(2)
     mad2rms = 1.4826
     prefac = mad2rms / sqrt2
@@ -229,8 +276,8 @@ def griddata(pixPerBeam=3.5,
         beamSize = 1.22 * (c / nu0 / 100.0) * 180 / np.pi  # in degrees
     naxis3 = len(s[0]['DATA'][startChannel:endChannel])
 
-    # Default behavior is to park the object velocity at
-    # the center channel in the VRAD-LSR frame
+# Default behavior is to park the object velocity at
+# the center channel in the VRAD-LSR frame
 
     crval3 = s[0]['RESTFREQ'] * (1 - s[0]['VELOCITY'] / c)
     crpix3 = s[0]['CRPIX1'] - startChannel
@@ -285,7 +332,12 @@ def griddata(pixPerBeam=3.5,
 
         nuindex = np.arange(len(s[1].data['DATA'][0]))
 
-        for spectrum in console.ProgressBar((s[1].data)):
+        if not OnlineDoppler:
+            vframe = VframeInterpolator(s[1].data)
+        else:
+            vframe = s[1].data['VFRAME']
+
+        for idx, spectrum in enumerate(console.ProgressBar((s[1].data))):
             # Generate Baseline regions
             baselineIndex = np.concatenate([nuindex[ss]
                                             for ss in baselineRegion])
@@ -300,9 +352,9 @@ def griddata(pixPerBeam=3.5,
             # CRPIX1 (i.e., CRVAL1) and calculates the what frequency
             # that would have in the LSRK frame with freqShiftValue.
             # This then compares to the desired frequency CRVAL3.
-
+                
             DeltaNu = freqShiftValue(spectrum['CRVAL1'],
-                                     -spectrum['VFRAME']) - crval3
+                                     -vframe[idx]) - crval3
             DeltaChan = DeltaNu / cdelt3
             specData = channelShift(specData, -DeltaChan)
             outslice = (specData)[startChannel:endChannel]
@@ -313,12 +365,21 @@ def griddata(pixPerBeam=3.5,
                                                         spectrum['CRVAL1'], 0)
             tsys = spectrum['TSYS']
             if flagRMS:
-                radiometer_rms = tsys / np.sqrt(spectrum['CDELT1'] *
+                radiometer_rms = tsys / np.sqrt(np.abs(spectrum['CDELT1']) *
                                                 spectrum['EXPOSURE'])
-                scan_rms = prefac * np.median(np.abs(outslice[0:-1] -
-                                                     outslice[1:]))
+                scan_rms = prefac * np.median(np.abs(outslice[0:-2] -
+                                                        outslice[2:]))
+
                 if scan_rms > 1.25 * radiometer_rms:
                     tsys = 0 # Blank spectrum
+            if flagRipple:
+                scan_rms = prefac * np.median(np.abs(outslice[0:-2] -
+                                                     outslice[2:]))
+                ripple = prefac * sqrt2 * np.median(np.abs(outslice))
+
+                if ripple > 2 * scan_rms:
+                    tsys = 0 # Blank spectrum
+                
             if (tsys > 10) and (xpoints > 0) and (xpoints < naxis1) \
                     and (ypoints > 0) and (ypoints < naxis2):
                 pixelWeight, Index = gridFunction(xmat, ymat,
@@ -349,8 +410,11 @@ def griddata(pixPerBeam=3.5,
     # Add non standard fits keyword
     hdr = addHeader_nonStd(hdr, beamSize, Data_Unit)
     # Adds history message
-    hdr.add_history(history_message)
-    hdr.add_history('Using GAS pipeline version {0}'.format(__version__))
+    try:
+        hdr.add_history(history_message)
+    except UnboundLocalError:
+        pass
+    hdr.add_history('Using KEYSTONE pipeline version {0}'.format(__version__))
     hdu = fits.PrimaryHDU(outCube, header=hdr)
     hdu.writeto(outdir + '/' + dirname + '.fits', clobber=True)
 
