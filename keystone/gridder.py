@@ -14,6 +14,8 @@ import numpy.polynomial.legendre as legendre
 import warnings
 import baseline
 import os
+import gbtpipe
+from .utils import VlsrByCoord
 from . import __version__
 
 
@@ -190,16 +192,20 @@ def griddata(pixPerBeam=3.5,
              blorder=1,
              Sessions=None,
              file_extension=None,
-             rebase=False, 
+             rebase=True, 
              beamSize=None,
              OnlineDoppler=True,
-             flagRMS=False,
-             flagRipple=False,
-             filelist = [],
+             flagRMS=True,
+             flagRipple=True,
+             flagSpike=True,
+             blankSpike=True,
+             rmsThresh=1.5,
+             plotTimeSeries=True,
+             filelist=[],
              outdir=None, **kwargs):
     if outdir is None:
         outdir = os.getcwd()
-
+    
     if baselineRegion is None:
         if 'NH3' in dirname:
             baselineRegion = [slice(762, 1280, 1), slice(2822, 3334, 1)]
@@ -259,188 +265,210 @@ def griddata(pixPerBeam=3.5,
         except:
             warnings.warn('file {0} is corrupted'.format(file_i))
             filelist.remove(file_i)
-# pull a test structure
-    hdulist = fits.open(filelist[0])
-    s = hdulist[1].data
-#    s = fits.getdata(filelist[0])
+            
+    outdir= rootdir + '/images/'
+    outname = dirname + file_extension
+    gbtpipe.Gridding.griddata(filelist,
+                              startChannel=startChannel,
+                              endChannel=endChannel,
+                              doBaseline=doBaseline,
+                              baselineRegion=baselineRegion,
+                              blorder=blorder, rebaseorder=3,
+                              flagRMS=flagRMS, rmsThresh=rmsThresh,
+                              outdir=outdir, outname=outname,
+                              templateHeader=templateHeader,
+                              VlsrByCoord=VlsrByCoord,
+                              plotTimeSeries=plotTimeSeries,
+                              blankSpike=blankSpike,
+                              flagSpike=flagSpike, **kwargs)
+    # Convolve the beam size up by 10% in size
+    gbtpipe.Gridding.postConvolve(outdir+outname)
+
+
+
+
+# # pull a test structure
+#     hdulist = fits.open(filelist[0])
+#     s = hdulist[1].data
+# #    s = fits.getdata(filelist[0])
     
-# Constants block
-    sqrt2 = np.sqrt(2)
-    mad2rms = 1.4826
-    prefac = mad2rms / sqrt2
-    c = 299792458.
-    nu0 = s[0]['RESTFREQ']
+# # Constants block
+#     sqrt2 = np.sqrt(2)
+#     mad2rms = 1.4826
+#     prefac = mad2rms / sqrt2
+#     c = 299792458.
+#     nu0 = s[0]['RESTFREQ']
 
-    Data_Unit = s[0]['TUNIT7']
-    if beamSize is None:
-        beamSize = 1.22 * (c / nu0 / 100.0) * 180 / np.pi  # in degrees
-    naxis3 = len(s[0]['DATA'][startChannel:endChannel])
+#     Data_Unit = s[0]['TUNIT7']
+#     if beamSize is None:
+#         beamSize = 1.22 * (c / nu0 / 100.0) * 180 / np.pi  # in degrees
+#     naxis3 = len(s[0]['DATA'][startChannel:endChannel])
 
-# Default behavior is to park the object velocity at
-# the center channel in the VRAD-LSR frame
+# # Default behavior is to park the object velocity at
+# # the center channel in the VRAD-LSR frame
 
-    crval3 = s[0]['RESTFREQ'] * (1 - s[0]['VELOCITY'] / c)
-    crpix3 = s[0]['CRPIX1'] - startChannel
-    ctype3 = s[0]['CTYPE1']
-    cdelt3 = s[0]['CDELT1']
+#     crval3 = s[0]['RESTFREQ'] * (1 - s[0]['VELOCITY'] / c)
+#     crpix3 = s[0]['CRPIX1'] - startChannel
+#     ctype3 = s[0]['CTYPE1']
+#     cdelt3 = s[0]['CDELT1']
 
-    w = wcs.WCS(naxis=3)
+#     w = wcs.WCS(naxis=3)
 
-    w.wcs.restfrq = nu0
-    w.wcs.radesys = s[0]['RADESYS']
-    w.wcs.equinox = s[0]['EQUINOX']
-    # We are forcing this conversion to make nice cubes.
-    w.wcs.specsys = 'LSRK'
-    w.wcs.ssysobs = 'TOPOCENT'
+#     w.wcs.restfrq = nu0
+#     w.wcs.radesys = s[0]['RADESYS']
+#     w.wcs.equinox = s[0]['EQUINOX']
+#     # We are forcing this conversion to make nice cubes.
+#     w.wcs.specsys = 'LSRK'
+#     w.wcs.ssysobs = 'TOPOCENT'
 
-    if templateHeader is None:
-        wcsdict = autoHeader(filelist, beamSize=beamSize,
-                             pixPerBeam=pixPerBeam)
-        w.wcs.crpix = [wcsdict['CRPIX1'], wcsdict['CRPIX2'], crpix3]
-        w.wcs.cdelt = np.array([wcsdict['CDELT1'], wcsdict['CDELT2'], cdelt3])
-        w.wcs.crval = [wcsdict['CRVAL1'], wcsdict['CRVAL2'], crval3]
-        w.wcs.ctype = [wcsdict['CTYPE1'], wcsdict['CTYPE2'], ctype3]
-        naxis2 = wcsdict['NAXIS2']
-        naxis1 = wcsdict['NAXIS1']
-    else:
-        w.wcs.crpix = [templateHeader['CRPIX1'],
-                       templateHeader['CRPIX2'], crpix3]
-        w.wcs.cdelt = np.array([templateHeader['CDELT1'],
-                                templateHeader['CDELT2'], cdelt3])
-        w.wcs.crval = [templateHeader['CRVAL1'],
-                       templateHeader['CRVAL2'], crval3]
-        w.wcs.ctype = [templateHeader['CTYPE1'],
-                       templateHeader['CTYPE2'], ctype3]
-        naxis2 = templateHeader['NAXIS2']
-        naxis1 = templateHeader['NAXIS1']
-    outCube = np.zeros((int(naxis3), int(naxis2), int(naxis1)))
-    outWts = np.zeros((int(naxis2), int(naxis1)))
+#     if templateHeader is None:
+#         wcsdict = autoHeader(filelist, beamSize=beamSize,
+#                              pixPerBeam=pixPerBeam)
+#         w.wcs.crpix = [wcsdict['CRPIX1'], wcsdict['CRPIX2'], crpix3]
+#         w.wcs.cdelt = np.array([wcsdict['CDELT1'], wcsdict['CDELT2'], cdelt3])
+#         w.wcs.crval = [wcsdict['CRVAL1'], wcsdict['CRVAL2'], crval3]
+#         w.wcs.ctype = [wcsdict['CTYPE1'], wcsdict['CTYPE2'], ctype3]
+#         naxis2 = wcsdict['NAXIS2']
+#         naxis1 = wcsdict['NAXIS1']
+#     else:
+#         w.wcs.crpix = [templateHeader['CRPIX1'],
+#                        templateHeader['CRPIX2'], crpix3]
+#         w.wcs.cdelt = np.array([templateHeader['CDELT1'],
+#                                 templateHeader['CDELT2'], cdelt3])
+#         w.wcs.crval = [templateHeader['CRVAL1'],
+#                        templateHeader['CRVAL2'], crval3]
+#         w.wcs.ctype = [templateHeader['CTYPE1'],
+#                        templateHeader['CTYPE2'], ctype3]
+#         naxis2 = templateHeader['NAXIS2']
+#         naxis1 = templateHeader['NAXIS1']
+#     outCube = np.zeros((int(naxis3), int(naxis2), int(naxis1)))
+#     outWts = np.zeros((int(naxis2), int(naxis1)))
 
-    xmat, ymat = np.meshgrid(np.arange(naxis1), np.arange(naxis2),
-                             indexing='ij')
-    xmat = xmat.reshape(xmat.size)
-    ymat = ymat.reshape(ymat.size)
-    xmat = xmat.astype(np.int)
-    ymat = ymat.astype(np.int)
+#     xmat, ymat = np.meshgrid(np.arange(naxis1), np.arange(naxis2),
+#                              indexing='ij')
+#     xmat = xmat.reshape(xmat.size)
+#     ymat = ymat.reshape(ymat.size)
+#     xmat = xmat.astype(np.int)
+#     ymat = ymat.astype(np.int)
 
-    ctr = 0
-    for thisfile in filelist:
-        ctr += 1
-        s = fits.open(thisfile)
-        print("Now processing {0}".format(thisfile))
-        print("This is file {0} of {1}".format(ctr, len(filelist)))
+#     ctr = 0
+#     for thisfile in filelist:
+#         ctr += 1
+#         s = fits.open(thisfile)
+#         print("Now processing {0}".format(thisfile))
+#         print("This is file {0} of {1}".format(ctr, len(filelist)))
 
-        nuindex = np.arange(len(s[1].data['DATA'][0]))
+#         nuindex = np.arange(len(s[1].data['DATA'][0]))
 
-        if not OnlineDoppler:
-            vframe = VframeInterpolator(s[1].data)
-        else:
-            vframe = s[1].data['VFRAME']
+#         if not OnlineDoppler:
+#             vframe = VframeInterpolator(s[1].data)
+#         else:
+#             vframe = s[1].data['VFRAME']
 
-        for idx, spectrum in enumerate(console.ProgressBar((s[1].data))):
-            # Generate Baseline regions
-            baselineIndex = np.concatenate([nuindex[ss]
-                                            for ss in baselineRegion])
+#         for idx, spectrum in enumerate(console.ProgressBar((s[1].data))):
+#             # Generate Baseline regions
+#             baselineIndex = np.concatenate([nuindex[ss]
+#                                             for ss in baselineRegion])
 
-            specData = spectrum['DATA']
-            # baseline fit
-            if doBaseline & np.all(np.isfinite(specData)):
-                specData = baselineSpectrum(specData, order=blorder,
-                                            baselineIndex=baselineIndex)
+#             specData = spectrum['DATA']
+#             # baseline fit
+#             if doBaseline & np.all(np.isfinite(specData)):
+#                 specData = baselineSpectrum(specData, order=blorder,
+#                                             baselineIndex=baselineIndex)
 
-            # This part takes the TOPOCENTRIC frequency that is at
-            # CRPIX1 (i.e., CRVAL1) and calculates the what frequency
-            # that would have in the LSRK frame with freqShiftValue.
-            # This then compares to the desired frequency CRVAL3.
+#             # This part takes the TOPOCENTRIC frequency that is at
+#             # CRPIX1 (i.e., CRVAL1) and calculates the what frequency
+#             # that would have in the LSRK frame with freqShiftValue.
+#             # This then compares to the desired frequency CRVAL3.
                 
-            DeltaNu = freqShiftValue(spectrum['CRVAL1'],
-                                     -vframe[idx]) - crval3
-            DeltaChan = DeltaNu / cdelt3
-            specData = channelShift(specData, -DeltaChan)
-            outslice = (specData)[startChannel:endChannel]
-            spectrum_wt = np.isfinite(outslice).astype(np.float)
-            outslice = np.nan_to_num(outslice)
-            xpoints, ypoints, zpoints = w.wcs_world2pix(spectrum['CRVAL2'],
-                                                        spectrum['CRVAL3'],
-                                                        spectrum['CRVAL1'], 0)
-            tsys = spectrum['TSYS']
-            if flagRMS:
-                radiometer_rms = tsys / np.sqrt(np.abs(spectrum['CDELT1']) *
-                                                spectrum['EXPOSURE'])
-                scan_rms = prefac * np.median(np.abs(outslice[0:-2] -
-                                                        outslice[2:]))
+#             DeltaNu = freqShiftValue(spectrum['CRVAL1'],
+#                                      -vframe[idx]) - crval3
+#             DeltaChan = DeltaNu / cdelt3
+#             specData = channelShift(specData, -DeltaChan)
+#             outslice = (specData)[startChannel:endChannel]
+#             spectrum_wt = np.isfinite(outslice).astype(np.float)
+#             outslice = np.nan_to_num(outslice)
+#             xpoints, ypoints, zpoints = w.wcs_world2pix(spectrum['CRVAL2'],
+#                                                         spectrum['CRVAL3'],
+#                                                         spectrum['CRVAL1'], 0)
+#             tsys = spectrum['TSYS']
+#             if flagRMS:
+#                 radiometer_rms = tsys / np.sqrt(np.abs(spectrum['CDELT1']) *
+#                                                 spectrum['EXPOSURE'])
+#                 scan_rms = prefac * np.median(np.abs(outslice[0:-2] -
+#                                                         outslice[2:]))
 
-                if scan_rms > 1.25 * radiometer_rms:
-                    tsys = 0 # Blank spectrum
-            if flagRipple:
-                scan_rms = prefac * np.median(np.abs(outslice[0:-2] -
-                                                     outslice[2:]))
-                ripple = prefac * sqrt2 * np.median(np.abs(outslice))
+#                 if scan_rms > 1.25 * radiometer_rms:
+#                     tsys = 0 # Blank spectrum
+#             if flagRipple:
+#                 scan_rms = prefac * np.median(np.abs(outslice[0:-2] -
+#                                                      outslice[2:]))
+#                 ripple = prefac * sqrt2 * np.median(np.abs(outslice))
 
-                if ripple > 2 * scan_rms:
-                    tsys = 0 # Blank spectrum
+#                 if ripple > 2 * scan_rms:
+#                     tsys = 0 # Blank spectrum
                 
-            if (tsys > 10) and (xpoints > 0) and (xpoints < naxis1) \
-                    and (ypoints > 0) and (ypoints < naxis2):
-                pixelWeight, Index = gridFunction(xmat, ymat,
-                                                  xpoints, ypoints,
-                                                  pixPerBeam=pixPerBeam)
-                vector = np.outer(outslice * spectrum_wt,
-                                  pixelWeight / tsys**2)
-                wts = pixelWeight / tsys**2
-                outCube[:, ymat[Index], xmat[Index]] += vector
-                outWts[ymat[Index], xmat[Index]] += wts
-        # Temporarily do a file write for every batch of scans.
-        outWtsTemp = np.copy(outWts)
-        outWtsTemp.shape = (1,) + outWtsTemp.shape
-        outCubeTemp = np.copy(outCube)
-        outCubeTemp /= outWtsTemp
+#             if (tsys > 10) and (xpoints > 0) and (xpoints < naxis1) \
+#                     and (ypoints > 0) and (ypoints < naxis2):
+#                 pixelWeight, Index = gridFunction(xmat, ymat,
+#                                                   xpoints, ypoints,
+#                                                   pixPerBeam=pixPerBeam)
+#                 vector = np.outer(outslice * spectrum_wt,
+#                                   pixelWeight / tsys**2)
+#                 wts = pixelWeight / tsys**2
+#                 outCube[:, ymat[Index], xmat[Index]] += vector
+#                 outWts[ymat[Index], xmat[Index]] += wts
+#         # Temporarily do a file write for every batch of scans.
+#         outWtsTemp = np.copy(outWts)
+#         outWtsTemp.shape = (1,) + outWtsTemp.shape
+#         outCubeTemp = np.copy(outCube)
+#         outCubeTemp /= outWtsTemp
 
-        hdr = fits.Header(w.to_header())
-        hdr = addHeader_nonStd(hdr, beamSize, Data_Unit)
-        #
-        hdu = fits.PrimaryHDU(outCubeTemp, header=hdr)
-        hdu.writeto(outdir + '/' + dirname + '.fits', clobber=True)
+#         hdr = fits.Header(w.to_header())
+#         hdr = addHeader_nonStd(hdr, beamSize, Data_Unit)
+#         #
+#         hdu = fits.PrimaryHDU(outCubeTemp, header=hdr)
+#         hdu.writeto(outdir + '/' + dirname + '.fits', clobber=True)
 
-    outWts.shape = (1,) + outWts.shape
-    outCube /= outWts
+#     outWts.shape = (1,) + outWts.shape
+#     outCube /= outWts
 
-    # Create basic fits header from WCS structure
-    hdr = fits.Header(w.to_header())
-    # Add non standard fits keyword
-    hdr = addHeader_nonStd(hdr, beamSize, Data_Unit)
-    # Adds history message
-    try:
-        hdr.add_history(history_message)
-    except UnboundLocalError:
-        pass
-    hdr.add_history('Using KEYSTONE pipeline version {0}'.format(__version__))
-    hdu = fits.PrimaryHDU(outCube, header=hdr)
-    hdu.writeto(outdir + '/' + dirname + '.fits', clobber=True)
+#     # Create basic fits header from WCS structure
+#     hdr = fits.Header(w.to_header())
+#     # Add non standard fits keyword
+#     hdr = addHeader_nonStd(hdr, beamSize, Data_Unit)
+#     # Adds history message
+#     try:
+#         hdr.add_history(history_message)
+#     except UnboundLocalError:
+#         pass
+#     hdr.add_history('Using KEYSTONE pipeline version {0}'.format(__version__))
+#     hdu = fits.PrimaryHDU(outCube, header=hdr)
+#     hdu.writeto(outdir + '/' + dirname + '.fits', clobber=True)
 
-    w2 = w.dropaxis(2)
-    hdr2 = fits.Header(w2.to_header())
-    hdu2 = fits.PrimaryHDU(outWts, header=hdr2)
-    hdu2.writeto(outdir + '/' + dirname + '_wts.fits', clobber=True)
+#     w2 = w.dropaxis(2)
+#     hdr2 = fits.Header(w2.to_header())
+#     hdu2 = fits.PrimaryHDU(outWts, header=hdr2)
+#     hdu2.writeto(outdir + '/' + dirname + '_wts.fits', clobber=True)
 
-    if rebase:
+#     if rebase:
 
-        if 'NH3_11' in dirname:
-            baseline.rebaseline(outdir + '/' + dirname + '.fits',
-                                windowFunction=baseline.ammoniaWindow,
-                                line='oneone', **kwargs)
+#         if 'NH3_11' in dirname:
+#             baseline.rebaseline(outdir + '/' + dirname + '.fits',
+#                                 windowFunction=baseline.ammoniaWindow,
+#                                 line='oneone', **kwargs)
 
-        elif 'NH3_22' in dirname:
-            winfunc = baseline.ammoniaWindow
-            baseline.rebaseline(outdir + '/' + dirname + '.fits',
-                                windowFunction=baseline.ammoniaWindow,
-                                line='twotwo', **kwargs)
+#         elif 'NH3_22' in dirname:
+#             winfunc = baseline.ammoniaWindow
+#             baseline.rebaseline(outdir + '/' + dirname + '.fits',
+#                                 windowFunction=baseline.ammoniaWindow,
+#                                 line='twotwo', **kwargs)
 
-        elif 'NH3_33' in dirname:
-            baseline.rebaseline(outdir + '/' + dirname + '.fits',
-                                winfunc = baseline.ammoniaWindow,
-                                line='threethree', **kwargs)
-        else:
-            baseline.rebaseline(outdir + '/' + dirname + '.fits',
-                                windowFunction=baseline.tightWindow, 
-                                **kwargs)
+#         elif 'NH3_33' in dirname:
+#             baseline.rebaseline(outdir + '/' + dirname + '.fits',
+#                                 winfunc = baseline.ammoniaWindow,
+#                                 line='threethree', **kwargs)
+#         else:
+#             baseline.rebaseline(outdir + '/' + dirname + '.fits',
+#                                 windowFunction=baseline.tightWindow, 
+#                                 **kwargs)
