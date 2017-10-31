@@ -38,9 +38,9 @@ def move_files(region='W3', session=81,
              region+'_HC5N_9_8',
              region+'_HC5N_8_7',
              region+'_HC7N_19_18']
-    window=['0', '9', '10', '12', 
+    window=['8', '9', '10', '12', 
             '13', '6', '2', '5', 
-            '3', '4', '11', '7', '1']
+            '3', '4', '11', '0', '1']
     for i in range(len(folder)):
         file_list=glob.glob('{0}*window{1}*fits'.format(prefix,window[i]))
         if len(file_list) > 0:
@@ -163,7 +163,7 @@ def reduceAll(overwrite=False, release = 'all'):
 def wrapper(logfile='ObservationLog.csv',region='W3',
             window=['8', '9', '10', '12', 
                     '13', '6', '2', '5', 
-                    '3', '4', '11', '7', '1'],
+                    '3', '4', '11', '0', '1'],
             overwrite=False,startdate = '2015-01-1',
             enddate='2020-12-31',release='all',obslog = None):
     """
@@ -261,7 +261,7 @@ def doPipeline(SessionNumber=1,StartScan = 11, EndScan=58,
                   '3':'HNCO_1_0', 
                   '4':'H2O', 
                   '11':'HC5N_9_8',
-                  '7':'HC5N_8_7', 
+                  '0':'HC5N_8_7', 
                   '1':'HC7N_19_18'}
                   
     # Set default pipeline options as a dictionary
