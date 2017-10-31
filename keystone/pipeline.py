@@ -4,7 +4,7 @@ import glob
 import warnings
 from astropy.time import Time
 from . import catalogs
-
+import numpy as np
 
 def move_files(region='W3', session=81,
                prefix='W3_map_1_scan_29_76'):
@@ -112,7 +112,6 @@ def reduceSession(session = 1, overwrite=False, release = 'all'):
     Log = Log[SessionRows]
     uniqSrc = RegionCatalog['Region name']
     cwd = os.getcwd()
-    import pdb; pdb.set_trace()
     for region in uniqSrc:
         if region != 'none':
             try:
@@ -120,9 +119,14 @@ def reduceSession(session = 1, overwrite=False, release = 'all'):
             except OSError:
                 os.mkdir(cwd+'/'+region)
                 os.chdir(cwd+'/'+region)
-            wrapper(region=region, overwrite = overwrite,
-                    release=release, obslog = Log)
-            os.chdir(cwd)
+            LogRows = Log['Region name'] == region
+            if np.any(LogRows):
+                wrapper(region=region, overwrite = overwrite,
+                        release=release, obslog = Log,
+                        startdate=Log[LogRows][0]['Date'],
+                        enddate=Log[LogRows][0]['Date'])
+
+                os.chdir(cwd)
 
 
 
@@ -228,7 +232,7 @@ def wrapper(logfile='ObservationLog.csv',region='W3',
                                Region=region,
                                RawDataDir=observation['Special RawDir'],
                                Window=str(thisWindow),overwrite=overwrite)
-                    
+
 def doPipeline(SessionNumber=1,StartScan = 11, EndScan=58,
                Source='Perseus_map_NGC1333-A', Window='0',
                Region = 'NGC1333', OptionDict = None,
