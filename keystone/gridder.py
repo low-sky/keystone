@@ -266,7 +266,7 @@ def griddata(pixPerBeam=3.5,
             warnings.warn('file {0} is corrupted'.format(file_i))
             filelist.remove(file_i)
             
-    outdir= rootdir + '/images/'
+    outdir = rootdir + '/images/'
     outname = dirname + file_extension
     gbtpipe.Gridding.griddata(filelist,
                               startChannel=startChannel,
@@ -280,6 +280,7 @@ def griddata(pixPerBeam=3.5,
                               VlsrByCoord=VlsrByCoord,
                               plotTimeSeries=plotTimeSeries,
                               blankSpike=blankSpike,
+                              rebase=rebase,
                               flagSpike=flagSpike, **kwargs)
     # Convolve the beam size up by 10% in size
     gbtpipe.Gridding.postConvolve(outdir+outname)
