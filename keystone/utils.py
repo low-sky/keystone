@@ -104,3 +104,4 @@ def hanning(cube, decimate=True):
     if decimate:
         smcube = smcube[1::2,:,:]
     return smcube
+
