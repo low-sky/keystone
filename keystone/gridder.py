@@ -165,15 +165,6 @@ def addHeader_nonStd(hdr, beamSize, Data_Unit):
     hdr['INSTRUME'] = 'KFPA'
     return(hdr)
 
-def gridall_HC5N(region='NGC7538', **kwargs):
-    suffix = ['HC5N_8_7']
-    templatehdr = fits.getheader('./images/' + region + '_NH3_11_all.fits')
-    for thisline in suffix:
-        griddata(region = region, dirname = region + '_' + thisline,
-                 outdir = './images/', rebase=True,
-                 templateHeader=templatehdr,
-                 **kwargs)
-
 def gridall(region='NGC7538', **kwargs):
     suffix = ['NH3_22', 'NH3_33', 'NH3_44', 'NH3_55',
               'C2S_2_1', 'CH3OH_10_9', 'CH3OH_12_11', 
