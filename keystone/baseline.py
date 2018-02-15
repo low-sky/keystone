@@ -110,6 +110,15 @@ def tightWindow(spectrum, spaxis,
         mask[(spaxis < (v0 - outerwindow))] = True
     return(~mask)
 
+def clipper(file_in, clip_lr=[100,100]):
+	# Clip channels off the left and right of cube
+	# clip_lr = [channels to clip from left, channels to clip from right]
+	clip_cube = SpectralCube.read(file_in)
+	x_clip = clip_cube.unmasked_data[clip_lr[0]:-clip_lr[1], :, :]
+	header_clip = clip_cube.header
+	header_clip['NAXIS3']=len(x_clip[:,0,0])
+	sp = SpectralCube(data=x_clip, wcs=clip_cube.wcs, header=header_clip)
+	sp.write(file_in[0:-5] + '_clip.fits', format='fits', overwrite=True)
 
 def mad1d(x):
     med0 = np.median(x)

@@ -2,7 +2,7 @@ import catalogs
 import numpy as np
 
 
-def VlsrByCoord(RA, Dec, region='OrionA', regionCatalog=None):
+def VlsrByCoord(RA, Dec, region='OrionA', regionCatalog=None, **kwargs):
 
     """
     For the GAS regions determine the appropriate v0 given coordinates.
@@ -104,3 +104,4 @@ def hanning(cube, decimate=True):
     if decimate:
         smcube = smcube[1::2,:,:]
     return smcube
+

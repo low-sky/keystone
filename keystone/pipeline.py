@@ -91,7 +91,7 @@ def fillAll(overwrite=False):
             permissions = 'chmod g+rw -R '+OutputDir
             subprocess.call(permissions,shell=True)
 
-def reduceSession(session = 1, overwrite=False, release = 'all'):
+def reduceSession(session = 1, overwrite=False, release = 'all', **kwargs):
     """
     Function to reduce all data using the GBT-pipeline.
     
@@ -124,13 +124,13 @@ def reduceSession(session = 1, overwrite=False, release = 'all'):
                 wrapper(region=region, overwrite = overwrite,
                         release=release, obslog = Log,
                         startdate=Log[LogRows][0]['Date'],
-                        enddate=Log[LogRows][0]['Date'])
+                        enddate=Log[LogRows][0]['Date'], **kwargs)
 
                 os.chdir(cwd)
 
 
 
-def reduceAll(overwrite=False, release = 'all'):
+def reduceAll(overwrite=False, release = 'all', **kwargs):
     """
     Function to reduce all data using the GBT-pipeline.
     
@@ -157,7 +157,7 @@ def reduceAll(overwrite=False, release = 'all'):
                 os.mkdir(cwd+'/'+region)
                 os.chdir(cwd+'/'+region)
             wrapper(region=region, overwrite = overwrite,
-                    release=release, obslog = Log)
+                    release=release, obslog = Log, **kwargs)
             os.chdir(cwd)
 
 def wrapper(logfile='ObservationLog.csv',region='W3',
@@ -165,7 +165,7 @@ def wrapper(logfile='ObservationLog.csv',region='W3',
                     '13', '6', '2', '5', 
                     '3', '4', '11', '0', '1'],
             overwrite=False,startdate = '2015-01-1',
-            enddate='2020-12-31',release='all',obslog = None):
+            enddate='2020-12-31',release='all',obslog = None, **kwargs):
     """
     This is the KEYSTONE pipeline which chomps the observation logs and
     then batch calibrates the data.  It requires AstroPy because
