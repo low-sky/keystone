@@ -9,8 +9,31 @@ import astropy.units as u
 import matplotlib.pyplot as plt
 import aplpy
 from skimage.morphology import remove_small_objects,closing,disk,opening
+from gauss_fit import gauss_fitter
 
 from pyspeckit.spectrum.models import ammonia
+
+def get_params(data):
+	# I like to have each parameter as a variable:
+	data_sigma = fits.getdata(data)[3] # Sigma
+	data_Tkin = fits.getdata(data)[0] # Tkin
+	data_NH3 = fits.getdata(data)[2] # NH3 Column
+	err_NH3 = fits.getdata(data)[8] # NH3 Column err
+	err_Tkin = fits.getdata(data)[6] # Tkin
+	err_sigma = fits.getdata(data)[9] # Sigma
+	err_Tx = fits.getdata(data)[7] # Tex
+	Tx = fits.getdata(data)[1] # Tex
+	data_NH3_Vlsr_err = fits.getdata(data)[10] # vlsr
+	data_NH3_Vlsr = fits.getdata(data)[4] # vlsr
+	#params = [data_sigma,data_Tkin,data_NH3,err_Tkin, err_sigma, err_Tx, Tx, data_NH3_Vlsr_err, data_NH3_Vlsr]
+
+	# Make some liberal contraints on unacceptable best-fit parameters
+	# where cond_params=True, that pixel will not be considered reliable
+	cond_params = (data_Tkin<=5.) | (err_Tkin>5.) | (err_Tkin==0.) | (err_sigma>2.)  | (err_sigma==0.) | (data_NH3_Vlsr_err>3.0) | (data_NH3_Vlsr_err==0.) | (data_sigma<0.05) | (data_sigma>3.) | (10**data_NH3==1.0) | (data_sigma==0.0) | (data_NH3>17.) | (err_NH3==0) | (err_NH3>5.) | (err_Tx==0.)
+	# uncomment line below to return all  
+	#return data_sigma,data_Tkin,data_NH3,err_Tkin, err_sigma, err_Tx, Tx, data_NH3_Vlsr_err, data_NH3_Vlsr, err_NH3, cond_params
+	return cond_params
+
 
 def update_NH3_moment0(region_name='L1688', file_extension='DR1_rebase3', threshold=0.0125, save_masked=False):
     """
@@ -40,6 +63,7 @@ def update_NH3_moment0(region_name='L1688', file_extension='DR1_rebase3', thresh
 
     """
     fit_file='{0}_parameter_maps_{1}.fits'.format(region_name,file_extension)
+    pixel_mask = get_params(fit_file)
     for line_i in ['11','22']:
         file_in ='{0}_NH3_{2}_{1}.fits'.format(region_name,file_extension,line_i)
         file_out='{0}_NH3_{2}_{1}_mom0_QA.fits'.format(region_name,file_extension,line_i)
@@ -80,9 +104,12 @@ def update_NH3_moment0(region_name='L1688', file_extension='DR1_rebase3', thresh
         total_spc=np.sqrt( (vaxis-vmean)**2)/sigma_v < 3.0
         # 
         im_mask=np.sum(mask3d, axis=0)
+        # Here checking for bad fits. Places where parameter uncertainties are zero or unreasonably low
+        # Probably a more elegant way to do this! 
         for ii in np.arange( im_mask.shape[1]):
             for jj in np.arange( im_mask.shape[0]):
-                if (im_mask[jj,ii] == 0) or (pycube.parcube[3,jj,ii] < 3*pycube.errcube[3,jj,ii]):
+                if ((im_mask[jj,ii] == 0) or (pycube.parcube[3,jj,ii] < 3*pycube.errcube[3,jj,ii]) or
+                    (pycube.errcube[4,jj,ii] == 0) or (pycube.errcube[1,jj,ii] < 0.01)): #or (pixel_mask[jj,ii]==True)
                     mask3d[:,jj,ii] = total_spc
         n_chan=np.sum(mask3d, axis=0)
         # create masked cube
@@ -126,6 +153,92 @@ def update_rest_moment0(region_name='L1688', file_extension='DR1_rebase3', v_mea
         # create masked cube
         cube2 = cube.with_mask(mask3d)
         cube3 = cube.with_mask(~mask3d)
+        # calculate moment map
+        moment_0 = cube2.moment(axis=0)
+        moment_0.write( file_out, overwrite=True)
+        rms=cube3.std(axis=0)
+        rms.write( file_rms, overwrite=True)
+
+def update_rest_moment0_2(region_name='L1688', file_extension='base_all_rebase3', threshold=0.0125, save_masked=False):
+    """
+    Function to update moment calculation based on centroid velocity from line fit.
+    For a given line cube, we check which channels have flux in the model cube, 
+    and then use those channels as the appropiate channels for integration.
+
+    Based on code provided by Vlas Sokolov
+
+    Parameters
+    ----------
+    region : str
+        Name of region to re-calculate moment map
+    file_extension : str
+        filename extension
+    threshold : float
+        minimum threshold in model cube used to identify channels with emission
+        Default is down to the machine precision, a better result could be 
+        obtained with 0.0125
+    save_masked : Boolean
+        Keyword to store the masked cube used in the integrated intensity calculation.
+        This is useful to 
+
+    Usage: 
+    import GAS
+    GAS.PropertyMaps.update_rest_moment0_2(region_name='NGC1333', file_extension='DR1_rebase3', threshold=0.0125, save_masked=True)
+
+    """
+    # Add NH3 (3,3) to this list once change Gaussian fits to fit this line as well
+    for line in ['HC5N','HC7N_21_20','HC7N_22_21','C2S']:
+        fit_file='{0}/{0}_{1}_{2}_param_cube.fits'.format(region_name,line,file_extension)
+        fit_model_file='{0}/{0}_{1}_{2}_gauss_cube.fits'.format(region_name,line,file_extension)
+        file_in ='{0}/{0}_{1}_{2}.fits'.format(region_name,line,file_extension)
+        file_out='{0}/{0}_{1}_{2}_mom0_QA.fits'.format(region_name,line,file_extension)
+        file_rms='{0}/{0}_{1}_{2}_rms_QA.fits'.format(region_name,line,file_extension)
+        file_rms_mom='{0}/{0}_{1}_{2}_mom0_sigma_QA.fits'.format(region_name,line,file_extension)
+        file_temp='{0}/{0}_{1}_{2}_masked_temp.fits'.format(region_name,line,file_extension)
+        # Load pyspeckit cube
+        # Might be able to just load the Gaussian cube here.. 
+        pycube = pyspeckit.Cube(file_in)
+        pycube.load_model_fit( fit_file, npars=3, npeaks=1, fittype='gaussian')
+        # If threshold is not defined, then use the machine accuracy
+        if threshold == None:
+            threshold=np.finfo(pycube.data.dtype).eps
+        # Get model cube from pyspeckit. Is completely zero for Gaussian fits. Why? 
+        #modelcube = pycube.get_modelcube()
+        # Using output model file from the Gaussian fitter instead
+        model = pyspeckit.Cube(fit_model_file)
+        modelcube = model.cube
+        # Use spectral cube to calculate integrated intensity maps
+        cube_raw = SpectralCube.read(file_in)
+        # in km/s not Hz
+        cube = cube_raw.with_spectral_unit(u.km / u.s,velocity_convention='radio')
+        vaxis=cube.spectral_axis
+        dv=np.abs(vaxis[1]-vaxis[0])
+        # define mask 
+        mask3d = modelcube > threshold
+        # What to do with pixels without signal
+        # Calculate mean velocity and velocity dispersion
+        vmap=pycube.parcube[1,:,:]
+        sigma_map=pycube.parcube[2,:,:]
+        vmean=np.nanmean(vmap[vmap != 0])*u.km/u.s
+        sigma_v=( np.nanmedian(sigma_map[vmap != 0]))*u.km/u.s
+        total_spc=np.sqrt( (vaxis-vmean)**2)/sigma_v < 3.0
+        # 
+        im_mask=np.sum(mask3d, axis=0)
+        # Here checking for bad fits. Places where parameter uncertainties are zero or unreasonably low
+        # Probably a more elegant way to do this! 
+        # For Gaussian fits: parameters are [amp, vlsr, sigma]
+        for ii in np.arange( im_mask.shape[1]):
+            for jj in np.arange( im_mask.shape[0]):
+                if ((im_mask[jj,ii] == 0) or (pycube.parcube[2,jj,ii] < 3*pycube.errcube[2,jj,ii]) or
+                    (pycube.errcube[1,jj,ii] == 0) or (pycube.errcube[1,jj,ii] > 0.2)):
+                    mask3d[:,jj,ii] = total_spc
+        n_chan=np.sum(mask3d, axis=0)
+        # create masked cube
+        cube2 = cube.with_mask(mask3d)
+        cube3 = cube.with_mask(~mask3d)
+        #
+        if save_masked:
+            cube2.write( file_temp, overwrite=True)
         # calculate moment map
         moment_0 = cube2.moment(axis=0)
         moment_0.write( file_out, overwrite=True)
@@ -800,7 +913,7 @@ def default_masking(snr,snr_min=5.0):
 
 
 def cubefit(region='NGC1333', blorder=1, vmin=5, vmax=15, do_plot=False, 
-            snr_min=5.0, multicore=1, file_extension=None, mask_function = None):
+            snr_min=5.0, multicore=1, file_extension=None, mask_function = None, gauss_fit=False):
     """
     Fit NH3(1,1) and (2,2) cubes for the requested region. 
     It fits all pixels with SNR larger than requested. 
@@ -930,4 +1043,9 @@ def cubefit(region='NGC1333', blorder=1, vmin=5, vmax=15, do_plot=False,
     fitcubefile.header.set('CTYPE3','FITPAR')
     fitcubefile.header.set('CRVAL3',0)
     fitcubefile.header.set('CRPIX3',1)
-    fitcubefile.writeto("{0}_parameter_maps_{1}.fits".format(region,root),clobber=True)
+    fitcubefile.writeto("{0}/{0}_parameter_maps_{1}.fits".format(region,root),clobber=True)
+
+    if gauss_fit==True:
+	molecules = ['C2S', 'HC7N_22_21', 'HC7N_21_20', 'HC5N']
+	for i in molecules:
+        	gauss_fitter(region=region, mol=i, vmin=vmin, vmax=vmax, snr_min=snr_min, multicore=multicore, file_extension=file_extension)
