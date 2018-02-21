@@ -17,6 +17,7 @@ import os
 import gbtpipe
 from .utils import VlsrByCoord
 from . import __version__
+import postprocess
 
 
 def baselineSpectrum(spectrum, order=1, baselineIndex=()):
@@ -173,7 +174,7 @@ def gridall(region='NGC7538', **kwargs):
     griddata(region = region, dirname = region + '_NH3_11',
              outdir = './images/', rebase=True,
              **kwargs)
-    templatehdr = fits.getheader('./images/' + region + '_NH3_11.fits')
+    templatehdr = fits.getheader('./images/' + region + '_NH3_11_all.fits')
     for thisline in suffix:
         griddata(region = region, dirname = region + '_' + thisline,
                  outdir = './images/', rebase=True,
@@ -206,23 +207,14 @@ def griddata(pixPerBeam=3.5,
     if outdir is None:
         outdir = os.getcwd()
     
+    blRegion,sChannel,eChannel = postprocess.get_baselineRegion(region=region, dirname=dirname)
     if baselineRegion is None:
-        if 'NH3' in dirname:
-            baselineRegion = [slice(762, 1280, 1), slice(2822, 3334, 1)]
-        else:
-            baselineRegion = [slice(1024, 1536, 1), slice(2560, 3072, 1)]
-
+        baselineRegion=blRegion
     if startChannel is None:
-        if 'NH3' in dirname:
-            startChannel = 762
-        else:
-            startChannel = 1024
-
+        startChannel=sChannel
     if endChannel is None:
-        if 'NH3' in dirname:
-            endChannel = 3334
-        else:
-            endChannel = 3072
+        endChannel=eChannel
+
 # If the filelist is not specified, go ahead and build it from groupings.
     if not filelist:
         if not Sessions:
@@ -283,7 +275,7 @@ def griddata(pixPerBeam=3.5,
                               rebase=rebase,
                               flagSpike=flagSpike, **kwargs)
     # Convolve the beam size up by 10% in size
-    gbtpipe.Gridding.postConvolve(outdir+outname)
+    #gbtpipe.Gridding.postConvolve(outdir+outname)
 
 
 
