@@ -1,0 +1,78 @@
+clip_params:
+  CygX_N:
+    nh3_11:
+      highFreq: 200
+      lowFreq: 0
+    nh3_22:
+      highFreq: 100
+      lowFreq: 0
+  CygX_S:
+    nh3_11:
+      highFreq: 0
+      lowFreq: 0
+    nh3_22:
+      highFreq: 0
+      lowFreq: 0
+  M16:
+    nh3_11:
+      highFreq: 0
+      lowFreq: 100
+    nh3_22:
+      highFreq: 0
+      lowFreq: 50
+  M17:
+    nh3_11:
+      highFreq: 0
+      lowFreq: 0
+    nh3_22:
+      highFreq: 0
+      lowFreq: 0
+  NGC2264:
+    nh3_11:
+      highFreq: 300
+      lowFreq: 300
+    nh3_22:
+      highFreq: 210
+      lowFreq: 220
+  NGC7538:
+    nh3_11:
+      highFreq: 190
+      lowFreq: 330
+    nh3_22:
+      highFreq: 100
+      lowFreq: 200
+  Rosette:
+    nh3_11:
+      highFreq: 300
+      lowFreq: 300
+    nh3_22:
+      highFreq: 150
+      lowFreq: 150
+  W48:
+    nh3_11:
+      highFreq: 50
+      lowFreq: 100
+    nh3_22:
+      highFreq: 0
+      lowFreq: 100
+  MonR1:
+    nh3_11:
+      highFreq: 0
+      lowFreq: 0
+    nh3_22:
+      highFreq: 0
+      lowFreq: 0
+  MonR2:
+    nh3_11:
+      highFreq: 0
+      lowFreq: 0
+    nh3_22:
+      highFreq: 0
+      lowFreq: 0
+  W3:
+    nh3_11:
+      highFreq: 0
+      lowFreq: 0
+    nh3_22:
+      highFreq: 0
+      lowFreq: 0

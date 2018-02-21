@@ -17,6 +17,7 @@ import os
 import gbtpipe
 from .utils import VlsrByCoord
 from . import __version__
+import postprocess
 
 
 def baselineSpectrum(spectrum, order=1, baselineIndex=()):
@@ -165,6 +166,15 @@ def addHeader_nonStd(hdr, beamSize, Data_Unit):
     hdr['INSTRUME'] = 'KFPA'
     return(hdr)
 
+def gridall_HC5N(region='NGC7538', **kwargs):
+    suffix = ['HC5N_8_7']
+    templatehdr = fits.getheader('./images/' + region + '_NH3_11_all.fits')
+    for thisline in suffix:
+        griddata(region = region, dirname = region + '_' + thisline,
+                 outdir = './images/', rebase=True,
+                 templateHeader=templatehdr,
+                 **kwargs)
+
 def gridall(region='NGC7538', **kwargs):
     suffix = ['NH3_22', 'NH3_33', 'NH3_44', 'NH3_55',
               'C2S_2_1', 'CH3OH_10_9', 'CH3OH_12_11', 
@@ -206,49 +216,14 @@ def griddata(pixPerBeam=3.5,
     if outdir is None:
         outdir = os.getcwd()
     
-    if region=='NGC2264':
-	clip_lr = [300, 300, 220, 210] # extra channels to clip from left and right
-	# The first two numbers are subtrcted from left and right of 1,1 line
-	# The last two subtracted from left and right of 2,2 line (and other lines)
-    #elif region=='CygX_S':
-    #	clip_lr = [200, 200, 100, 100]
-    elif region=='M16':
-    	clip_lr = [100, 0, 50, 0]
-    elif region=='W48':
-    	clip_lr = [100, 50, 100, 0]
-    elif region=='CygX_N':
-    	clip_lr = [0, 200, 0, 100]
-    elif region=='NGC7538':
-    	clip_lr = [330, 190, 200, 100]
-    elif region=='Rosette':
-    	clip_lr = [300, 300, 150, 150]
-    #elif region=='W3':
-    #	clip_lr = [250, 200, 100, 100]
-    else:
-	clip_lr=[0 ,0, 0, 0] 
+    blRegion,sChannel,eChannel = postprocess.get_baselineRegion(region=region, dirname=dirname)
     if baselineRegion is None:
-        if ('NH3_11' in dirname):
-            baselineRegion = [slice(1362+clip_lr[0], 1662+clip_lr[0], 1), slice(2434-clip_lr[1], 2734-clip_lr[1], 1)]
-        elif ('NH3_22' in dirname):
-            baselineRegion = [slice(1362+clip_lr[2], 1662+clip_lr[2], 1), slice(2434-clip_lr[3], 2734-clip_lr[3], 1)]
-        else:
-            baselineRegion = [slice(1500+clip_lr[2], 1800+clip_lr[2], 1), slice(2093-clip_lr[2], 2597-clip_lr[2], 1)] #1400, 1700
-
+        baselineRegion=blRegion
     if startChannel is None:
-        if ('NH3_11' in dirname):
-            startChannel = 1362+clip_lr[0]
-        elif ('NH3_22' in dirname):
-            startChannel = 1362+clip_lr[2]
-        else:
-            startChannel = 1500+clip_lr[2]
-
+        startChannel=sChannel
     if endChannel is None:
-        if ('NH3_11' in dirname):
-            endChannel = 2734-clip_lr[1]
-        elif ('NH3_22' in dirname):
-            endChannel = 2734-clip_lr[3]
-        else:
-            endChannel = 2597-clip_lr[3]
+        endChannel=eChannel
+
 # If the filelist is not specified, go ahead and build it from groupings.
     if not filelist:
         if not Sessions:
