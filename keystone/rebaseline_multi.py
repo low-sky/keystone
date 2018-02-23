@@ -24,21 +24,21 @@ def get_mask(spectra, mask_percent=0.4):
        	""" 
 	spec_len = len(spectra)
 	sample = int(spec_len*mask_percent)
-	left = numpy.zeros(15)+numpy.std(spectra[0:31]) # For the first 15 entries, use first window
-	right = numpy.zeros(15)+numpy.std(spectra[-31:]) # For the last 15 entries, use last window
-	middle = numpy.std(skimage.util.view_as_windows(spectra, 31, 1),axis=1)
-	stds = numpy.concatenate((left, middle, right))
-	mask = numpy.arange(spec_len)[numpy.argsort(stds)[:sample]]
-	#median_std = numpy.std(stds)*3
-	#mask = numpy.where(numpy.array(stds)<median_std)[0]
-	#mask = numpy.concatenate((mask, numpy.arange(-50, 50)))
+	left = np.zeros(15)+np.nanstd(spectra[0:31]) # For the first 15 entries, use first window
+	right = np.zeros(15)+np.nanstd(spectra[-31:]) # For the last 15 entries, use last window
+	middle = np.nanstd(skimage.util.view_as_windows(spectra, 31, 1),axis=1)
+	stds = np.concatenate((left, middle, right))
+	mask = np.arange(spec_len)[np.argsort(stds)[:sample]]
+	#median_std = np.median(stds)*3
+	#mask = np.where(np.array(stds)<median_std)[0]
+	#mask = np.concatenate((mask, np.arange(-50, 50)))
 	#if 1>0: #len(mask)<30
 		#print 'yes'
-		#mask = numpy.arange(len(spectra))[numpy.argsort(stds)[:500]]
-		#mask=numpy.arange(len(spectra))[0::5]
+		#mask = np.arange(len(spectra))[np.argsort(stds)[:500]]
+		#mask=np.arange(len(spectra))[0::5]
 
 	#plt.plot(range(len(spectra)), spectra)
-	#plt.plot(numpy.arange(len(spectra))[mask], spectra[mask])
+	#plt.plot(np.arange(len(spectra))[mask], spectra[mask])
 	#plt.show()
 	return mask
 
@@ -63,31 +63,43 @@ def redchisqg(ydata,ymod,deg=2,sd=None):
  http://goo.gl/8S1Oo"""  
       # Chi-square statistic  
       if sd==None:  
-           chisq=numpy.sum((ydata-ymod)**2)  
+           chisq=np.sum((ydata-ymod)**2)  
       else:  
-           chisq=numpy.sum( ((ydata-ymod)/sd)**2 )  
+           chisq=np.sum( ((ydata-ymod)/sd)**2 )  
              
       # Number of degrees of freedom assuming 2 free parameters  
       nu=ydata.size-1-deg  
         
       return chisq/nu
 
-def get_chi(blorder, ydata, xdata, blindex, noise):
+def get_chi(blorder_max, ydata, xdata, blindex, noise):
     """
  Returns the best-fit Legendre polynomial to an input spectra, 
- along with that model's reduced chi-squared value.     
+ based on a comparison of the reduced chi-squared values for each order 
+ of the polynomial.     
    
- blorder = order of polynomial to fit
+ blorder_max = maximum order of polynomial to fit
  ydata = spectrum y values
  xdata = spectrum x values
  blindex = the indices of the spectra to include in baseline fitting
  noise = rms noise of spectrum"""
-    opts = lsq(legendreLoss, np.zeros(blorder + 1), args=(ydata[blindex],
+    opts = lsq(legendreLoss, np.zeros(blorder_max + 1), args=(ydata[blindex],
                                                           xdata[blindex],
                                                         noise), loss='arctan')
-    ymod = legendre.legval(xdata, opts.x)
-    chi = redchisqg(ydata,ymod,deg=blorder+1)
-    return ymod, chi
+    chis = [] # first entry is order=1, second is order=2, ..., up to order=blorder
+    ymods = []
+    # Loop through each order of polynomial and create model baseline
+    # and calculate that model's chi-squared values
+    for i in np.arange(blorder_max)+1:
+	# i is the polynomial order
+    	ymod = legendre.legval(xdata, np.array(opts.x)[0:i+1]) #+1 to get last term
+	ymods.append(ymod)
+    	chi = redchisqg(ydata,ymod,deg=i+1)
+	chis.append(chi)
+    # Find the model with the lowest chi-squared value
+    find_low = np.where(np.array(chis)==min(chis))
+    low_model = np.array(ymods)[find_low]
+    return ymod
 
 def robustBaseline_chi(y, baselineIndex, blorder_max=3, noiserms=None):
     """  
@@ -100,17 +112,10 @@ def robustBaseline_chi(y, baselineIndex, blorder_max=3, noiserms=None):
  noiserms = rms noise of spectrum"""
     x = np.linspace(-1, 1, len(y))
     if noiserms is None:
-        noiserms = mad1d((y - np.roll(y, -2))[baselineIndex])
-    out = []
-    for i in numpy.arange(1,blorder_max+1):
-    	b = get_chi(blorder=i, ydata=y, xdata=x, blindex=baselineIndex, noise=noiserms)
-	out.append(b)
-    out = numpy.array(out)
-    find_low = numpy.where(out[:,1]==min(out[:,1]))
-    low_model = out[find_low][0][0]
-    #print low_model
+        noiserms = mad1d((y - np.roll(y, -2))[baselineIndex]) * 2**(-0.5)
+    low_model = get_chi(blorder=blorder_max, ydata=y, xdata=x, blindex=baselineIndex, noise=noiserms)
     #plt.plot(range(len(y)), y)
-    #plt.plot(numpy.arange(len(y))[baselineIndex], y[baselineIndex])  
+    #plt.plot(np.arange(len(y))[baselineIndex], y[baselineIndex])  
     #plt.plot(range(len(x)), low_model, color='red')
     #plt.show()
     return y - low_model
@@ -125,7 +130,7 @@ def rebase(i, j, spectra, mask_percent=0.4, blorder_max=3):
  mask_percent = percentage of pixels to select for baseline fitting
  blorder_max = largest order polynomial to fit (fit from blorder_max down to order of 1) 
 	"""
-	if (False in numpy.isnan(spectra)): #and (m/std > 10.):
+	if (False in np.isnan(spectra)): #and (m/std > 10.):
 		mask = get_mask(spectra, mask_percent=mask_percent)
 		spectra = robustBaseline_chi(spectra, mask, blorder_max=blorder_max, noiserms=None)
 	return i, j, spectra
@@ -140,7 +145,7 @@ def rebase_multi(filename, nproc=8, mask_percent=0.4, blorder_max=3):
  blorder_max = largest order polynomial to fit (fit from blorder_max down to order of 1) 
 	"""
 	cube = SpectralCube.read(filename)
-	data = numpy.array(cube.unmasked_data[:,:,:])	
+	data = np.array(cube.unmasked_data[:,:,:])	
 
 	queue = pprocess.Queue(limit=nproc)
 	calc = queue.manage(pprocess.MakeParallel(rebase))
@@ -149,12 +154,12 @@ def rebase_multi(filename, nproc=8, mask_percent=0.4, blorder_max=3):
 	# create cube to store rebaselined data
 	#cube_out = data.copy()
 	cube_out = np.zeros(cube.shape) * np.nan
-	shape = numpy.shape(data)
+	shape = np.shape(data)
 	pixels = shape[1] * shape[2]
 
 	counter = 0
-	for (i,j), value in numpy.ndenumerate(data[0]):
-		calc(i,j, spectra=numpy.array(data[:,i,j]), mask_percent=mask_percent, blorder_max=blorder_max)
+	for (i,j), value in np.ndenumerate(data[0]):
+		calc(i,j, spectra=np.array(data[:,i,j]), mask_percent=mask_percent, blorder_max=blorder_max)
 
 	for i, j, ss in queue:
 		cube_out[:,i,j]=ss
@@ -167,7 +172,7 @@ def rebase_multi(filename, nproc=8, mask_percent=0.4, blorder_max=3):
 	cube_final.write(filename[0:-5] + '_rebase_multi.fits', format='fits', overwrite=True)
 
 # Usage examples:
-#rebase_multi('/lustre/pipeline/scratch/KEYSTONE/images/W48_NH3_11_sess31-sess31.fits')
+#rebase_multi('/lustre/pipeline/scratch/KEYSTONE/images/W48_NH3_11_sess31-sess31.fits', nproc=4)
 #rebase_multi('/lustre/pipeline/scratch/KEYSTONE/images/NGC2264_NH3_11_all.fits', mask_percent=0.2)
 #rebase_multi('/lustre/pipeline/scratch/KEYSTONE/images/Rosette_NH3_11_all.fits', mask_percent=0.4)
 #rebase_multi('/lustre/pipeline/scratch/KEYSTONE/images/NGC2264_NH3_22_all.fits', mask_percent=0.2, blorder_max=1)
