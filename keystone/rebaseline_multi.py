@@ -12,7 +12,7 @@ import sys
 import skimage
 from keystone.baseline import mad1d, legendreLoss
 
-def get_mask(spectra, mask_percent=0.4):
+def get_mask(spectra, mask_percent=0.4, window_size=31):
       	"""  
  Returns a mask of channels to be used for baseline fitting.
  Function calculates the standard deviation of a 31 pixel window
@@ -20,13 +20,14 @@ def get_mask(spectra, mask_percent=0.4):
  standard deviation for their window are then chosen for baseline fitting.    
    
  spectra = input spectra as numpy array
- mask_percent = percentage of pixels to select for baseline fitting    
+ mask_percent = percentage of pixels to select for baseline fitting
+ window_size = width of window, in units of channels, centred on each channel    
        	""" 
 	spec_len = len(spectra)
 	sample = int(spec_len*mask_percent)
-	left = np.zeros(15)+np.nanstd(spectra[0:31]) # For the first 15 entries, use first window
-	right = np.zeros(15)+np.nanstd(spectra[-31:]) # For the last 15 entries, use last window
-	middle = np.nanstd(skimage.util.view_as_windows(spectra, 31, 1),axis=1)
+	left = np.zeros(15)+np.nanstd(spectra[0:window_size]) # For the first 15 entries, use first window
+	right = np.zeros(15)+np.nanstd(spectra[-window_size:]) # For the last 15 entries, use last window
+	middle = np.nanstd(skimage.util.view_as_windows(spectra, window_size, 1),axis=1)
 	stds = np.concatenate((left, middle, right))
 	mask = np.arange(spec_len)[np.argsort(stds)[:sample]]
 	#median_std = np.median(stds)*3
