@@ -114,7 +114,7 @@ def robustBaseline_chi(y, baselineIndex, blorder_max=3, noiserms=None):
     x = np.linspace(-1, 1, len(y))
     if noiserms is None:
         noiserms = mad1d((y - np.roll(y, -2))[baselineIndex]) * 2**(-0.5)
-    low_model = get_chi(blorder=blorder_max, ydata=y, xdata=x, blindex=baselineIndex, noise=noiserms)
+    low_model = get_chi(blorder_max=blorder_max, ydata=y, xdata=x, blindex=baselineIndex, noise=noiserms)
     #plt.plot(range(len(y)), y)
     #plt.plot(np.arange(len(y))[baselineIndex], y[baselineIndex])  
     #plt.plot(range(len(x)), low_model, color='red')
