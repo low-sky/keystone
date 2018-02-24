@@ -17,5 +17,6 @@ if not _ASTROPY_SETUP_:
     import catalogs
     import utils
     import qa
+    import rebaseline_multi
 
     
