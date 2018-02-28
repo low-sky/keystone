@@ -18,5 +18,6 @@ if not _ASTROPY_SETUP_:
     import utils
     import qa
     import rebaseline_multi
+    import PropertyMaps
 
     
