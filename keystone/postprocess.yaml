@@ -71,8 +71,8 @@ clip_params:
       lowFreq: 0
   W3:
     nh3_11:
-      highFreq: 0
-      lowFreq: 0
+      highFreq: 200
+      lowFreq: 300
     nh3_22:
-      highFreq: 0
-      lowFreq: 0
+      highFreq: 100
+      lowFreq: 100
