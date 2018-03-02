@@ -115,8 +115,8 @@ def clipper(file_in, lowFreq=100, highFreq=100):
 	# lowFreq = channels to clip from low frequency end of spectra
 	# highFreq = channels to clip from high frequency end of spectra
 	cube = SpectralCube.read(file_in)
-	clip_cube = cube[clip_lr[0]:-clip_lr[1], :, :]
-	clip_cube.write(file_in.replace('.fits','_clip.fits', overwrite=True))
+	clip_cube = cube[lowFreq:-highFreq, :, :]
+	clip_cube.write(file_in.replace('.fits','_clip.fits'), overwrite=True)
 
 def mad1d(x):
     med0 = np.median(x)

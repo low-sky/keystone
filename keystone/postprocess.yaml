@@ -4,7 +4,7 @@ clip_params:
       highFreq: 200
       lowFreq: 0
     nh3_22:
-      highFreq: 100
+      highFreq: 200
       lowFreq: 0
   CygX_S:
     nh3_11:
