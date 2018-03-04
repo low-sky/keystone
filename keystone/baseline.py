@@ -130,7 +130,7 @@ def legendreLoss(coeffs, y, x, noise):
 def robustBaseline(y, baselineIndex, blorder=1, noiserms=None):
     x = np.linspace(-1, 1, len(y))
     if noiserms is None:
-        noiserms = mad1d((y - np.roll(y, -2))[baselineIndex])
+        noiserms = mad1d((y - np.roll(y, -2))[baselineIndex]) * 0.70710678118
     opts = lsq(legendreLoss, np.zeros(blorder + 1), args=(y[baselineIndex],
                                                           x[baselineIndex],
                                                           noiserms),
