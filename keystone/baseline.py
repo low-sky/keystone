@@ -2,7 +2,7 @@ import numpy as np
 import numpy.polynomial.legendre as legendre
 from .utils import VlsrByCoord
 from .first_look import trim_edge_cube
-import catalogs
+from .catalogs import *
 from scipy.optimize import least_squares as lsq
 from spectral_cube import SpectralCube
 import astropy.units as u
@@ -187,8 +187,8 @@ def rebaseline(filename, blorder=3,
     nuindex = np.arange(cube.shape[0])
     runmin = nuindex[-1]
     runmax = nuindex[0]
-
-    for thisy, thisx in console.ProgressBar(zip(y, x)):
+    pb = console.ProgressBar(len(y))
+    for thisy, thisx in zip(y, x):
         spectrum = cube[:, thisy, thisx].value
 
         if v0 is not None:
@@ -230,7 +230,7 @@ def rebaseline(filename, blorder=3,
             outcube[:, thisy, thisx] = robustBaseline(spectrum, baselineIndex,
                                                       blorder=blorder,
                                                       noiserms=noise)
-
+        pb.update()
     outsc = SpectralCube(outcube, cube.wcs, header=cube.header)
     outsc = outsc[runmin:runmax, :, :]  # cut beyond baseline edges
     if trimEdge: 
