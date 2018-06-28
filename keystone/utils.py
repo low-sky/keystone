@@ -1,4 +1,4 @@
-import catalogs
+from .catalogs import *
 import numpy as np
 
 

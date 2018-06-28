@@ -2,141 +2,142 @@ import numpy as np
 import numpy.polynomial.legendre as legendre
 from .utils import VlsrByCoord
 from .first_look import trim_edge_cube
-import catalogs
+from .catalogs import *
 from scipy.optimize import least_squares as lsq
 from spectral_cube import SpectralCube
 import astropy.units as u
 import astropy.utils.console as console
 import pyspeckit.spectrum.models.ammonia_constants as acons
+import gbtpipe.Baseline as baseline
+
+# def ammoniaWindow(spectrum, spaxis, freqthrow=4.11 * u.MHz,
+#                   window=3, v0=8.5, line='oneone', outerwindow=None):
+#     """
+#     This defines a narrow window around the v0 value for ammonia hyperfines.
+
+#     Parameters
+#     ----------
+#     spectrum : np.array
+#         The one-dimensional spectrum
+#     spaxis : np.array
+#         The spectral axis in units of km/s for the input spectrum
+#     window : np.float
+#         Width, in km/s, around the input velocity to consider emission
+#     outerwindow : np.float
+#         Velocity separations larger than this value are ignored in the baseline
+#     v0 : np.float
+#         Central velocity in km/s for emission window
+#     freqthrow : astropy.Quantity
+#         frequency swith throw for the observations.
+#     line : str
+#         String name of the ammonia line to consider, e.g., 'oneone', 'twotwo'
+#     Returns
+#     -------
+#     mask : np.array
+#         Boolean array of regions to use in the baseline fitting.
+#     """
+
+#     mask = np.zeros_like(spectrum, dtype=np.bool)
+#     voffs = np.array([dv for dv in acons.voff_lines_dict[line]])
+#     for voff in voffs:
+#         mask[(spaxis > (v0 + voff - window)) *
+#              (spaxis < (v0 + voff + window))] = True
+
+#     deltachan = freqthrow / ((spaxis[1] - spaxis[0]) / 299792.458 *
+#                              acons.freq_dict[line] * u.Hz)
+#     deltachan = deltachan.to(u.dimensionless_unscaled).value
+#     deltachan = (np.floor(np.abs(deltachan))).astype(np.int)
+
+#     if (deltachan < spaxis.size):
+#         mask = np.logical_or(mask, np.r_[mask[deltachan:-1],
+#                                          np.zeros(deltachan + 1,
+#                                                   dtype=np.bool)])
+#         mask = np.logical_or(mask, np.r_[np.zeros(deltachan + 1,
+#                                                   dtype=np.bool),
+#                                          mask[0:(-deltachan - 1)]])
+
+#     if outerwindow is not None:
+#         mask[(spaxis > (v0 + outerwindow + voffs.max()))] = True
+#         mask[(spaxis < (v0 - outerwindow + voffs.min()))] = True
+#     return ~mask
 
 
-def ammoniaWindow(spectrum, spaxis, freqthrow=4.11 * u.MHz,
-                  window=3, v0=8.5, line='oneone', outerwindow=None):
-    """
-    This defines a narrow window around the v0 value for ammonia hyperfines.
+# def tightWindow(spectrum, spaxis,
+#                 window=4,
+#                 outerwindow=None,
+#                 v0=8.5, freqthrow=4.11 * u.MHz):
+#     """
+#     This defines a narrow window around the v0 value for the emission region
 
-    Parameters
-    ----------
-    spectrum : np.array
-        The one-dimensional spectrum
-    spaxis : np.array
-        The spectral axis in units of km/s for the input spectrum
-    window : np.float
-        Width, in km/s, around the input velocity to consider emission
-    outerwindow : np.float
-        Velocity separations larger than this value are ignored in the baseline
-    v0 : np.float
-        Central velocity in km/s for emission window
-    freqthrow : astropy.Quantity
-        frequency swith throw for the observations.
-    line : str
-        String name of the ammonia line to consider, e.g., 'oneone', 'twotwo'
-    Returns
-    -------
-    mask : np.array
-        Boolean array of regions to use in the baseline fitting.
-    """
+#     Parameters
+#     ----------
+#     spectrum : np.array
+#         The one-dimensional spectrum
+#     spaxis : np.array
+#         The spectral axis in units of km/s for the input spectrum
+#     window : np.float
+#         Width, in km/s, around the input velocity to consider emission
+#     outerwindow : np.float
+#         Velocity separations larger than this value are ignored in the baseline
+#     v0 : np.float
+#         Central velocity in km/s for emission window
+#     freqthrow : astropy.Quantity
+#         frequency swith throw for the observations.
+#     Returns
+#     -------
+#     mask : np.array
+#         Boolean array of regions to use in the baseline fitting.
+#     """
 
-    mask = np.zeros_like(spectrum, dtype=np.bool)
-    voffs = np.array([dv for dv in acons.voff_lines_dict[line]])
-    for voff in voffs:
-        mask[(spaxis > (v0 + voff - window)) *
-             (spaxis < (v0 + voff + window))] = True
+#     mask = np.zeros_like(spectrum, dtype=np.bool)
+#     mask[(spaxis > (v0 - window)) * (spaxis < (v0 + window))] = True
+#     deltachan = freqthrow / ((spaxis[1] - spaxis[0]) /
+#                              299792.458 * 0.5 * (spaxis[1] + 
+#                                                  spaxis[0]) * u.GHz)
+#     deltachan = deltachan.to(u.dimensionless_unscaled).value
+#     deltachan = (np.floor(np.abs(deltachan))).astype(np.int)
 
-    deltachan = freqthrow / ((spaxis[1] - spaxis[0]) / 299792.458 *
-                             acons.freq_dict[line] * u.Hz)
-    deltachan = deltachan.to(u.dimensionless_unscaled).value
-    deltachan = (np.floor(np.abs(deltachan))).astype(np.int)
+#     if (deltachan < spaxis.size):
 
-    if (deltachan < spaxis.size):
-        mask = np.logical_or(mask, np.r_[mask[deltachan:-1],
-                                         np.zeros(deltachan + 1,
-                                                  dtype=np.bool)])
-        mask = np.logical_or(mask, np.r_[np.zeros(deltachan + 1,
-                                                  dtype=np.bool),
-                                         mask[0:(-deltachan - 1)]])
+#         mask = np.logical_or(mask, np.r_[mask[deltachan:-1],
+#                                          np.zeros(deltachan + 1,
+#                                                   dtype=np.bool)])
+#         mask = np.logical_or(mask, np.r_[np.zeros(deltachan + 1,
+#                                                   dtype=np.bool),
+#                                          mask[0:(-deltachan - 1)]])
+#     if outerwindow is not None:
+#         mask[(spaxis > (v0 + outerwindow))] = True
+#         mask[(spaxis < (v0 - outerwindow))] = True
+#     return(~mask)
 
-    if outerwindow is not None:
-        mask[(spaxis > (v0 + outerwindow + voffs.max()))] = True
-        mask[(spaxis < (v0 - outerwindow + voffs.min()))] = True
-    return ~mask
+# def clipper(file_in, lowFreq=100, highFreq=100):
+# 	# Clip channels off the low and high frequency ends of cube
+# 	# lowFreq = channels to clip from low frequency end of spectra
+# 	# highFreq = channels to clip from high frequency end of spectra
+# 	cube = SpectralCube.read(file_in)
+# 	clip_cube = cube[clip_lr[0]:-clip_lr[1], :, :]
+# 	clip_cube.write(file_in.replace('.fits','_clip.fits', overwrite=True))
 
-
-def tightWindow(spectrum, spaxis,
-                window=4,
-                outerwindow=None,
-                v0=8.5, freqthrow=4.11 * u.MHz):
-    """
-    This defines a narrow window around the v0 value for the emission region
-
-    Parameters
-    ----------
-    spectrum : np.array
-        The one-dimensional spectrum
-    spaxis : np.array
-        The spectral axis in units of km/s for the input spectrum
-    window : np.float
-        Width, in km/s, around the input velocity to consider emission
-    outerwindow : np.float
-        Velocity separations larger than this value are ignored in the baseline
-    v0 : np.float
-        Central velocity in km/s for emission window
-    freqthrow : astropy.Quantity
-        frequency swith throw for the observations.
-    Returns
-    -------
-    mask : np.array
-        Boolean array of regions to use in the baseline fitting.
-    """
-
-    mask = np.zeros_like(spectrum, dtype=np.bool)
-    mask[(spaxis > (v0 - window)) * (spaxis < (v0 + window))] = True
-    deltachan = freqthrow / ((spaxis[1] - spaxis[0]) /
-                             299792.458 * 0.5 * (spaxis[1] + 
-                                                 spaxis[0]) * u.GHz)
-    deltachan = deltachan.to(u.dimensionless_unscaled).value
-    deltachan = (np.floor(np.abs(deltachan))).astype(np.int)
-
-    if (deltachan < spaxis.size):
-
-        mask = np.logical_or(mask, np.r_[mask[deltachan:-1],
-                                         np.zeros(deltachan + 1,
-                                                  dtype=np.bool)])
-        mask = np.logical_or(mask, np.r_[np.zeros(deltachan + 1,
-                                                  dtype=np.bool),
-                                         mask[0:(-deltachan - 1)]])
-    if outerwindow is not None:
-        mask[(spaxis > (v0 + outerwindow))] = True
-        mask[(spaxis < (v0 - outerwindow))] = True
-    return(~mask)
-
-def clipper(file_in, lowFreq=100, highFreq=100):
-	# Clip channels off the low and high frequency ends of cube
-	# lowFreq = channels to clip from low frequency end of spectra
-	# highFreq = channels to clip from high frequency end of spectra
-	cube = SpectralCube.read(file_in)
-	clip_cube = cube[lowFreq:-highFreq, :, :]
-	clip_cube.write(file_in.replace('.fits','_clip.fits'), overwrite=True)
-
-def mad1d(x):
-    med0 = np.median(x)
-    return np.median(np.abs(x - med0)) * 1.4826
+# def mad1d(x):
+#     med0 = np.median(x)
+#     return np.median(np.abs(x - med0)) * 1.4826
 
 
-def legendreLoss(coeffs, y, x, noise):
-    return (y - legendre.legval(x, coeffs)) / noise
+# def legendreLoss(coeffs, y, x, noise):
+#     return (y - legendre.legval(x, coeffs)) / noise
 
 
-def robustBaseline(y, baselineIndex, blorder=1, noiserms=None):
-    x = np.linspace(-1, 1, len(y))
-    if noiserms is None:
-        noiserms = mad1d((y - np.roll(y, -2))[baselineIndex])
-    opts = lsq(legendreLoss, np.zeros(blorder + 1), args=(y[baselineIndex],
-                                                          x[baselineIndex],
-                                                          noiserms),
-               loss='arctan')
+# def robustBaseline(y, baselineIndex, blorder=1, noiserms=None):
+#     x = np.linspace(-1, 1, len(y))
+#     if noiserms is None:
+#         noiserms = mad1d((y - np.roll(y, -2))[baselineIndex]) * 0.70710678118
+#     opts = lsq(legendreLoss, np.zeros(blorder + 1), args=(y[baselineIndex],
+#                                                           x[baselineIndex],
+#                                                           noiserms),
+#                loss='arctan')
 
-    return y - legendre.legval(x, opts.x)
+#     return y - legendre.legval(x, opts.x)
+>>>>>>> upstream/master
 
 
 def rebaseline(filename, blorder=3, 
@@ -187,8 +188,8 @@ def rebaseline(filename, blorder=3,
     nuindex = np.arange(cube.shape[0])
     runmin = nuindex[-1]
     runmax = nuindex[0]
-
-    for thisy, thisx in console.ProgressBar(zip(y, x)):
+    pb = console.ProgressBar(len(y))
+    for thisy, thisx in zip(y, x):
         spectrum = cube[:, thisy, thisx].value
 
         if v0 is not None:
@@ -230,7 +231,7 @@ def rebaseline(filename, blorder=3,
             outcube[:, thisy, thisx] = robustBaseline(spectrum, baselineIndex,
                                                       blorder=blorder,
                                                       noiserms=noise)
-
+        pb.update()
     outsc = SpectralCube(outcube, cube.wcs, header=cube.header)
     outsc = outsc[runmin:runmax, :, :]  # cut beyond baseline edges
     if trimEdge: 

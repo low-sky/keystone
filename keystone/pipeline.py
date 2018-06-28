@@ -327,7 +327,7 @@ def doPipeline(SessionNumber=1,StartScan = 11, EndScan=58,
                         format(StartScan,EndScan,Window,feed,pol,SessionNumber)
                     try:
                         os.rename(filename,OutputDirectory+'/'+outputfile)
-                        os.chown(OutputDirectory+'/'+outputfile,0774)
+                        os.chmod(OutputDirectory+'/'+outputfile, 0o0774)
                     except:
                         pass
                     

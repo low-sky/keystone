@@ -12,12 +12,10 @@ from ._astropy_init import *
 
 # For egg_info test builds to pass, put package imports here.
 if not _ASTROPY_SETUP_:
-    import pipeline
-    import gridder
-    import catalogs
-    import utils
-    import qa
-    import rebaseline_multi
-    import PropertyMaps
-
+    from .pipeline import *
+    from .gridder import *
+    from .catalogs import *
+    from .utils import *
+    from .qa import *
+    from .baseline import *
     

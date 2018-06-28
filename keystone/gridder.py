@@ -12,12 +12,11 @@ import astropy.units as u
 import astropy.constants as con
 import numpy.polynomial.legendre as legendre
 import warnings
-import baseline
 import os
 import gbtpipe
 from .utils import VlsrByCoord
 from . import __version__
-import postprocess
+from .postprocess import *
 
 
 def baselineSpectrum(spectrum, order=1, baselineIndex=()):
