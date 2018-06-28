@@ -1,16 +1,8 @@
 ;+
-; Show all of the Tsource values associated with a scan,refscan pair.
+; Show all of the Tsys values associated with a scan.
 ;
-; showsigref prints (signal-ref)/ref calibrated values for all samplers'
-; usage:
-;   showsigref, <sigScan>,<refScan>,<TAValues>[,/bysampler]
-;        where  <sigScan>   signal scan of a target source
-;               <refScan>   referenc scan for position switched cal.
-;               <TAValues>  Output Antenna Temps
-;               <bySampler> Optionally list values by sampler not beam
-;      Produces a table of Ta calibrated source temperature values
 ; <p>
-; This uses getsigref to retrieve the system temperature for each sampler
+; This uses gettp to retrieve the system temperature for each sampler
 ; in a scan.  If the bysampler keyword is set then they are displayed
 ; under each sampler name with at most 8 samplers per row.  If that
 ; keyword is not set then they are displayed by feed and polarization
@@ -19,28 +11,38 @@
 ; associated with is left blank in the output.
 ;
 ; <p>
+; For the default display by feed and polarization the frequency,
+; scan, az, and el values are added to the line.  These avalues are
+; useful when investigating changes in tsys with el, for example.  
+;
+; <p>
 ; Because this must retrieve the raw data to calculated Tsys it often
 ; takes time to finish.
+;
+; <p><B>Note:</B> This only works for the auto-correlation case.
+; Cross-correlation data will be both incompletely labelled in the
+; output and the Tsys determined from gettp is not appropriate.
+;
+; <p><B>Contributions from Glen Langston, Bob Garwood - NRAO-CV</B>
 ;
 ; @param scan {in}{required}{type=integer} The scan number of
 ; interest.
 ; @keyword bysampler {in}{optional}{type=boolean} When set the system
 ; temperature values will be identified by sampler name.
-;-
-; HISTORY
-; 2011Feb14 GIL Initial version based on Bob Garwood's showtsys.pro
 ;
-; @version $Id$
-;
-pro showsigref, scan, refscan, tAValues, bysampler=bysampler, doOneInt=doOneInt, $
-                freqObs=freqObs
+; @version $Id: showtsys.pro,v 1.2 2011/01/25 18:30:31 bgarwood Exp $
+;- 
+pro showtsys, scan, tsysValues, bysampler=bysampler
     compile_opt idl2
-
-    if n_elements(refscan) eq 0 then begin
-        usage,'showsigref',/verbose
+    if n_elements(scan) eq 0 then begin
+        print,'A scan number is required'
         return
     endif
-    if (not keyword_set(doOneInt)) then doOneInt = 0
+
+    if n_elements(tsysValues) ne 16 then begin
+        tsysValues = dindgen(16)
+    endif
+
     si = scan_info(scan,/quiet)
 
     if size(si,/type) ne 8 then begin
@@ -57,15 +59,9 @@ pro showsigref, scan, refscan, tAValues, bysampler=bysampler, doOneInt=doOneInt,
     npol = si.n_polarizations
     nif = si.n_ifs
     nsamp = si.n_samplers
-    someave = 1.0d0
-    somerms = 1.0d0
-
-    if n_elements(tAValues) ne 16 then tAValues = dindgen(nfeed*npol*nif)
-
 
     isFrozen = !g.frozen
     freeze
-
     nOut = 0                    ; prepare to fill the output array
     if keyword_set(bysampler) then begin
                                 ; awkward, may be badly sorted due to
@@ -82,24 +78,19 @@ pro showsigref, scan, refscan, tAValues, bysampler=bysampler, doOneInt=doOneInt,
             endfor
             print
             for k=first,last do begin
-                getsigref,scan,refscan,sampler=sortedSamplers[k],/q
-                nChan = n_elements(*!g.s[0].data_ptr)
-                somedata = (*!g.s[0].data_ptr)[(nChan/5):(nChan*4/5)]
-                linejrect, somedata, someave, somerms
-;                someave  = avg(somedata)
-;                somerms  = stddev(somedata)
-                !g.s[0].tsys=someave
-                tAValues[nOut] = !g.s[0].tsys
+                gettp,scan,sampler=sortedSamplers[k],/q
+                myformat = '($,f5.1," ")'
+                if !g.s[0].tsys gt 999. then myformat = '($,f5.0," ")'
+                print,!g.s[0].tsys,format=myformat
+                tsysValues[nOut] = !g.s[0].tsys
                 nOut = nOut+1
-                print,!g.s[0].tsys,format='($,f5.1," ")'
             endfor
             print
             print
         endfor
     endif else begin
-       tAvalues = dblarr(nif, nfeed, npol)
-       freqObs = dblarr(nif, nfeed, npol)
         ; label line first
+        tsysValues = dblarr(nif, nfeed, npol)
         print,format='($,"#IF")'
         for j=0,(nfeed-1) do begin
             for k=0,(npol-1) do begin
@@ -113,21 +104,14 @@ pro showsigref, scan, refscan, tAValues, bysampler=bysampler, doOneInt=doOneInt,
             print,i,format='($,i2," ")'
             for j=0,(nfeed-1) do begin
                 for k=0,(npol-1) do begin
-                    select,count,scan=scan,ifnum=i,fdnum=j,plnum=k,int=iNum,/quiet
+                    select,count,scan=scan,ifnum=i,fdnum=j,plnum=k,/quiet
                     if count ne 0 then begin
-                        if (doOneInt) then getsigref,scan,refscan,ifnum=i,fdnum=j,plnum=k,int=doOneInt,/quiet
-                        if (not doOneInt) then getsigref,scan,refscan,ifnum=i,fdnum=j,plnum=k,/quiet
-                        nChan = n_elements(*!g.s[0].data_ptr)
-
-                        somedata = (*!g.s[0].data_ptr)[(nChan/5):(nChan*4/5)]
-                        linereject, somedata, someave,somerms
-;                        someave  = avg(somedata)
-;                        somerms  = stddev(somedata)
-                        !g.s[0].tsys=someave
-                        tAValues[i, j, k] = !g.s[0].tsys
-                        freqObs[i, j, k] = !g.s[0].center_frequency*1e-6
+                        gettp,scan,ifnum=i,fdnum=j,plnum=k,/q
+                        myformat = '($,f5.1," ")'
+                        if !g.s[0].tsys gt 999. then myformat = '($,f5.0," ")'
+                        print,!g.s[0].tsys,format=myformat
+                        tsysValues[i, j, k] = !g.s[0].tsys
                         nOut = nOut+1
-                        print,!g.s[0].tsys,format='($,f5.1," ")'
                     endif else begin
                         print,format='($,"      ")'
                     endelse
