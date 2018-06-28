@@ -11,13 +11,13 @@ from astropy.convolution import convolve
 import radio_beam
 import sys
 
-def gauss_fitter(region = 'Cepheus_L1251', snr_min = 3.0, mol = 'C2S', vmin = 5.0, vmax=10.0, convolve=False, use_old_conv=False, multicore = 1, file_extension = None):
+def gauss_fitter(region = 'Cepheus_L1251', snr_min = 3.0, mol = 'C2S', vmin = 5.0, vmax=10.0, convolve=False, use_old_conv=False, multicore = 1, file_extension = None, use_ammonia_vel=False, plot=False):
 
     	"""
     	Fit a Gaussian to non-NH3 emission lines from GAS.
     	It creates a cube for the best-fit Gaussian, a cube 
     	for the best-fit Gaussian with noise added back into 
-    	the spectrum, and a parameter map of Tpeak, Vlsr, and FWHM
+    	the spectrum, and a parameter map of Tpeak, Vlsr, and sigma
     
     	Parameters
     	----------
@@ -49,13 +49,13 @@ def gauss_fitter(region = 'Cepheus_L1251', snr_min = 3.0, mol = 'C2S', vmin = 5.
         	# root = 'base{0}'.format(blorder)
         	root = 'all'
 
-	molecules = ['C2S', 'HC7N_22_21', 'HC7N_21_20', 'HC5N']
+	#molecules = ['C2S', 'HC7N_22_21', 'HC7N_21_20', 'HC5N']
 
-    	MolFile = '{0}/{0}_{2}_{1}.fits'.format(region,root,mol)
-	ConvFile = '{0}/{0}_{2}_{1}_conv.fits'.format(region,root,mol)
-	GaussOut = '{0}/{0}_{2}_{1}_gauss_cube.fits'.format(region,root,mol)
-	GaussNoiseOut = '{0}/{0}_{2}_{1}_gauss_cube_noise.fits'.format(region,root,mol)
-	ParamOut = '{0}/{0}_{2}_{1}_param_cube.fits'.format(region,root,mol)
+    	MolFile = '{0}_{2}_{1}.fits'.format(region,root,mol)
+	ConvFile = '{0}_{2}_{1}_conv.fits'.format(region,root,mol)
+	GaussOut = '{0}_{2}_{1}_gauss_cube.fits'.format(region,root,mol)
+	GaussNoiseOut = '{0}_{2}_{1}_gauss_cube_noise.fits'.format(region,root,mol)
+	ParamOut = '{0}_{2}_{1}_param_cube.fits'.format(region,root,mol)
 
 	# Load the spectral cube and convert to velocity units
 	cube = SpectralCube.read(MolFile)
@@ -71,16 +71,23 @@ def gauss_fitter(region = 'Cepheus_L1251', snr_min = 3.0, mol = 'C2S', vmin = 5.
 		cube_km.write(ConvFile, format='fits', overwrite=True)
 	if use_old_conv:
 		cube_km = SpectralCube.read(ConvFile)
-	
+
 	# Define the spectral axis in km/s
-	spectra_x_axis_kms = np.array(cube_km.spectral_axis) 
+	spectra_x_axis_kms = np.array(cube_km.spectral_axis)
+	
+	if use_ammonia_vel:
+		nh3_vlsr = fits.getdata('{0}_parameter_maps_{1}.fits'.format(region,root))
+		vmin = np.nanmin(nh3_vlsr[4][np.where(nh3_vlsr[4]!=0)])
+		vmax = np.nanmax(nh3_vlsr[4][np.where(nh3_vlsr[4]!=0)])
 
 	# Find the channel range corresponding to vmin and vmax
 	# -- This is a hold-over from when I originally set up the code to 
 	#    use a channel range rather than velocity range.
-	#    Can change later, but this should work for now. 
-	low_channel = np.where(spectra_x_axis_kms<=vmax)[0][0]+1 # Add ones to change index to channel
-	high_channel = np.where(spectra_x_axis_kms>=vmin)[0][-1]+1 # Again, hold-over from older setup
+	#    Can change later, but this should work for now.
+	low_channel = cube_km.closest_spectral_channel(vmax*u.km/u.s) 
+	high_channel = cube_km.closest_spectral_channel(vmin*u.km/u.s) 
+	#low_channel = np.where(spectra_x_axis_kms<=vmax)[0][0]+1 # Add ones to change index to channel
+	#high_channel = np.where(spectra_x_axis_kms>=vmin)[0][-1]+1 # Again, hold-over from older setup
 	peak_channels = [low_channel, high_channel]
 
 	# Create cubes for storing the fitted Gaussian profiles
@@ -88,10 +95,12 @@ def gauss_fitter(region = 'Cepheus_L1251', snr_min = 3.0, mol = 'C2S', vmin = 5.
 	header = cube_km.header
 	cube_gauss = np.array(cube_km.unmasked_data[:,:,:])
 	cube_gauss_noise = np.array(cube_km.unmasked_data[:,:,:])
+	cube_gauss_noise[:,:,:]=np.NAN
 	shape = np.shape(cube_gauss)
 
 	# Set up a cube for storing fitted parameters
-	param_cube = np.zeros(6, shape[1], shape[2])
+	param_cube = np.zeros((6, shape[1], shape[2]))
+	param_cube[:,:,:] = np.NAN
 	param_header = cube_km.header
 
 	# Define the Gaussian profile
@@ -118,11 +127,9 @@ def gauss_fitter(region = 'Cepheus_L1251', snr_min = 3.0, mol = 'C2S', vmin = 5.
             			pixels+=1
 	    			x.append(i)
 	    			y.append(j)
-     		else:	
-	    		cube_gauss[:,i,j]=nan_array
-	    		param_cube[:,i,j]=nan_array2
-			cube_gauss_noise[:,i,j]=nan_array
 	print str(pixels) + ' Pixels above SNR=' + str(snr_min) 
+
+	cube_gauss[:,:,:]=np.NAN
 
 	# Define a Gaussian fitting function for each pixel
 	# i, j are the x,y coordinates of the pixel being fit
@@ -175,13 +182,13 @@ def gauss_fitter(region = 'Cepheus_L1251', snr_min = 3.0, mol = 'C2S', vmin = 5.
 	tic=time.time()
 	counter = 0
 
-	# Uncomment to see some plots of the fitted spectra
-	#for i,j in zip(x,y):
-		#pix_fit(i,j)
-		#plt.plot(spectra_x_axis_kms, spectra, color='blue', drawstyle='steps')
-		#plt.plot(spectra_x_axis_kms, gauss, color='red')
-		#plt.show()
-		#plt.close()
+	if plot:
+		for i,j in zip(x,y):
+			i, j, gauss, params, noisy_gauss = pix_fit(i,j)
+			plt.plot(spectra_x_axis_kms, np.array(cube_km.unmasked_data[:,i,j]), color='blue', drawstyle='steps')
+			plt.plot(spectra_x_axis_kms, gauss, color='red')
+			plt.show()
+			#plt.close()
 
 	# Begin parallel computations
 	# Store the best-fit Gaussians and parameters 
