@@ -2,10 +2,14 @@ import yaml
 import io
 import os
 import keystone
+from astropy.utils.data import get_pkg_data_filename
 
 def get_baselineRegion(region='W48', dirname=None):
     # Read YAML file (contains clipping parameters by region)
-    with open(os.path.dirname(keystone.__file__)+"/postprocess.yaml", 'r') as stream:
+    filename = get_pkg_data_filename('./data/postprocess.yaml',
+                                     package='keystone')
+
+    with open(filename, 'r') as stream:
     	data_loaded = yaml.load(stream)
     
     clip = data_loaded['clip_params']
