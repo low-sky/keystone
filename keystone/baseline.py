@@ -137,6 +137,7 @@ import gbtpipe.Baseline as baseline
 #                loss='arctan')
 
 #     return y - legendre.legval(x, opts.x)
+>>>>>>> upstream/master
 
 
 def rebaseline(filename, blorder=3, 

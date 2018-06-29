@@ -1043,7 +1043,7 @@ def cubefit(region='NGC1333', blorder=1, vmin=5, vmax=15, do_plot=False,
     fitcubefile.header.set('CTYPE3','FITPAR')
     fitcubefile.header.set('CRVAL3',0)
     fitcubefile.header.set('CRPIX3',1)
-    fitcubefile.writeto("{0}/{0}_parameter_maps_{1}.fits".format(region,root),clobber=True)
+    fitcubefile.writeto("{0}_parameter_maps_{1}.fits".format(region,root),clobber=True)
 
     if gauss_fit==True:
 	molecules = ['C2S', 'HC7N_22_21', 'HC7N_21_20', 'HC5N']
