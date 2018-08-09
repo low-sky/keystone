@@ -18,4 +18,4 @@ if not _ASTROPY_SETUP_:
     from .utils import *
     from .qa import *
     from .baseline import *
-    
+    from .rebaseline_multi import *
