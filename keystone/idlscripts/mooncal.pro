@@ -190,7 +190,7 @@ pro moonCal, onMoonScan, offMoonScan, factors, tCmb, doOnOff=doOnOff, doLastInt=
   ;; for iii = 1, 11,2 do begin print,factors[iii],format='($,f5.3,",")'& endfor
   ;; for iii = 13,13,2 do begin print,factors[iii],format='($,f5.3," ")'& endfor
   ;; print,""
-  moonTempLogFile = 'MoonTemp.log'
+  moonTempLogFile = projID+'.MoonTemp.log'
   print,'Summary in :',moonTempLogFile
   openw,alun,moonTempLogFile,/get_lun,/append
   printf,alun,mjd,freqGHz,tMoon,tMoonObs, format='($,f10.3,f7.3,f6.1,f6.1," ")'
