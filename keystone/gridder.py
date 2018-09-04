@@ -17,6 +17,7 @@ import gbtpipe
 from .utils import VlsrByCoord
 from . import __version__
 from .postprocess import *
+import postprocess
 
 
 def baselineSpectrum(spectrum, order=1, baselineIndex=()):
