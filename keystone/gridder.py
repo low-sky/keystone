@@ -180,6 +180,23 @@ def gridall(region='NGC7538', **kwargs):
                  templateHeader=templatehdr,
                  **kwargs)
 
+def getGainDict():
+    gainDict = {('0', '0') : 0.979128705,
+                ('1', '0') : 0.916095905,
+                ('2', '0') : 0.875017,
+                ('3', '0') : 0.784742095,
+                ('4', '0') : 0.93435506,
+                ('5', '0') : 0.742008405,
+                ('6', '0') : 0.87569747,
+                ('0', '1') : 0.94387634
+                ('1', '1') : 0.86831252
+                ('2', '1') : 0.87293043
+                ('3', '1') : 0.780018805
+                ('4', '1') : 0.8046946
+                ('5', '1') : 0.532584695
+                ('6', '1') : 0.97160044}
+    return(gainDict)
+
 def griddata(pixPerBeam=3.5,
              templateHeader=None,
              gridFunction=jincGrid,
@@ -201,8 +218,13 @@ def griddata(pixPerBeam=3.5,
              blankSpike=True,
              rmsThresh=1.5,
              plotTimeSeries=True,
+             gainDict=None,
              filelist=[],
              outdir=None, **kwargs):
+
+    # This uses a fixed set of gain dicts.  
+    if gainDict is None:
+        gainDict = getGainDict()
     if outdir is None:
         outdir = os.getcwd()
     
@@ -251,8 +273,8 @@ def griddata(pixPerBeam=3.5,
     # check that every file in the filelist is valid
     # If not then remove it and send warning message
     for file_i in filelist:
-        try:
-            fits.open(file_i)
+        try: 
+           fits.open(file_i)
         except:
             warnings.warn('file {0} is corrupted'.format(file_i))
             filelist.remove(file_i)
@@ -271,7 +293,7 @@ def griddata(pixPerBeam=3.5,
                               VlsrByCoord=VlsrByCoord,
                               plotTimeSeries=plotTimeSeries,
                               blankSpike=blankSpike,
-                              rebase=rebase,
+                              rebase=rebase, gainDict=gainDict,
                               flagSpike=flagSpike, **kwargs)
     # Convolve the beam size up by 10% in size
     #gbtpipe.Gridding.postConvolve(outdir+outname)
