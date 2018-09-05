@@ -172,12 +172,12 @@ def gridall(region='NGC7538', **kwargs):
               'H2O', 'HC5N_8_7', 'HC5N_9_8', 'HC7N_19_18',
               'HNCO_1_0']
     griddata(region = region, dirname = region + '_NH3_11',
-             outdir = './images/', rebase=True,
+             outdir = './images/', rebase=False,
              **kwargs)
     templatehdr = fits.getheader('./images/' + region + '_NH3_11_all.fits')
     for thisline in suffix:
         griddata(region = region, dirname = region + '_' + thisline,
-                 outdir = './images/', rebase=True,
+                 outdir = './images/', rebase=False,
                  templateHeader=templatehdr,
                  **kwargs)
 
@@ -210,7 +210,7 @@ def griddata(pixPerBeam=3.5,
              blorder=1,
              Sessions=None,
              file_extension=None,
-             rebase=True, 
+             rebase=False, 
              beamSize=None,
              OnlineDoppler=True,
              flagRMS=True,
