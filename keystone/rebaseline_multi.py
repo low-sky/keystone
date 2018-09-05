@@ -6,11 +6,16 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.optimize import least_squares as lsq
 import numpy.polynomial.legendre as legendre
-import pprocess
+try:
+    import pprocess
+    pproc = True
+except ImportError:
+    pproc = False
 import time
 import sys
 import skimage
-from keystone.baseline import mad1d, legendreLoss
+from gbtpipe.Baseline import mad1d, legendreLoss
+# from keystone.baseline import mad1d, legendreLoss
 
 def get_mask(spectra, mask_percent=0.4, window_size=31):
       	"""  
@@ -148,8 +153,10 @@ def rebase_multi(filename, nproc=8, mask_percent=0.4, blorder_max=3, window_size
  mask_percent = percentage of pixels to select for baseline fitting
  blorder_max = largest order polynomial to fit (fit from blorder_max down to order of 1) 
 	"""
+	if not pproc:
+            warnings.warn('No pprocess module found')
+            return
 	cube = SpectralCube.read(filename)
-
 	queue = pprocess.Queue(limit=nproc, continuous=1)
 	calc = queue.manage(rebase)
 	tic = time.time()

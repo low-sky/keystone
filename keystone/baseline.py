@@ -9,6 +9,7 @@ import astropy.units as u
 import astropy.utils.console as console
 import pyspeckit.spectrum.models.ammonia_constants as acons
 import gbtpipe.Baseline as baseline
+from gbtpipe.Baseline import mad1d
 
 # def ammoniaWindow(spectrum, spaxis, freqthrow=4.11 * u.MHz,
 #                   window=3, v0=8.5, line='oneone', outerwindow=None):
@@ -137,8 +138,6 @@ def legendreLoss(coeffs, y, x, noise):
 #                loss='arctan')
 
 #     return y - legendre.legval(x, opts.x)
-#>>>>>>> upstream/master
-
 
 def rebaseline(filename, blorder=3, 
                baselineRegion=[slice(0, 800, 1), slice(-800, 0, 1)],
