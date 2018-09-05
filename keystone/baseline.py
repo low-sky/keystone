@@ -118,13 +118,13 @@ import gbtpipe.Baseline as baseline
 # 	clip_cube = cube[clip_lr[0]:-clip_lr[1], :, :]
 # 	clip_cube.write(file_in.replace('.fits','_clip.fits', overwrite=True))
 
-# def mad1d(x):
-#     med0 = np.median(x)
-#     return np.median(np.abs(x - med0)) * 1.4826
+def mad1d(x):
+     med0 = np.median(x)
+     return np.median(np.abs(x - med0)) * 1.4826
 
 
-# def legendreLoss(coeffs, y, x, noise):
-#     return (y - legendre.legval(x, coeffs)) / noise
+def legendreLoss(coeffs, y, x, noise):
+     return (y - legendre.legval(x, coeffs)) / noise
 
 
 # def robustBaseline(y, baselineIndex, blorder=1, noiserms=None):
@@ -137,7 +137,7 @@ import gbtpipe.Baseline as baseline
 #                loss='arctan')
 
 #     return y - legendre.legval(x, opts.x)
->>>>>>> upstream/master
+#>>>>>>> upstream/master
 
 
 def rebaseline(filename, blorder=3, 
